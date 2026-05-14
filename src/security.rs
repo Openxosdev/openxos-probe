@@ -4,25 +4,14 @@ use serde::Serialize;
 use url::Url;
 
 const HTTP_METHODS: &[&str] = &[
-    "OPTIONS", "GET", "HEAD", "POST", "PUT", "DELETE", "PATCH",
-    "TRACE", "CONNECT",
+    "OPTIONS", "GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "TRACE", "CONNECT",
 ];
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MethodEnumerationResult {
     pub allowed_methods: Vec<String>,
     pub dangerous_methods: Vec<String>,
     pub findings: Vec<SecurityFinding>,
-}
-
-impl Default for MethodEnumerationResult {
-    fn default() -> Self {
-        Self {
-            allowed_methods: Vec::new(),
-            dangerous_methods: Vec::new(),
-            findings: Vec::new(),
-        }
-    }
 }
 
 pub async fn enumerate_http_methods(
@@ -32,10 +21,7 @@ pub async fn enumerate_http_methods(
     let mut result = MethodEnumerationResult::default();
 
     for method in HTTP_METHODS {
-        let request = client.request(
-            reqwest::Method::from_bytes(method.as_bytes()).unwrap(),
-            url,
-        );
+        let request = client.request(reqwest::Method::from_bytes(method.as_bytes()).unwrap(), url);
 
         match request.send().await {
             Ok(resp) => {
@@ -180,17 +166,19 @@ pub struct ContentTypeMismatch {
 pub fn detect_cloud_provider(headers: &HeaderMap, _ip: Option<String>) -> Option<CloudInfo> {
     if headers.get("x-amz-cf-id").is_some() || headers.get("x-amzn-requestid").is_some() {
         return Some(CloudInfo {
-            provider: CloudProvider::AWS { service: "CloudFront".to_string() },
+            provider: CloudProvider::AWS {
+                service: "CloudFront".to_string(),
+            },
             service: Some("CloudFront".to_string()),
             region: None,
         });
     }
 
-    if headers.get("x-goog-api-key").is_some()
-        || headers.get("x-cloud-trace-context").is_some()
-    {
+    if headers.get("x-goog-api-key").is_some() || headers.get("x-cloud-trace-context").is_some() {
         return Some(CloudInfo {
-            provider: CloudProvider::GCP { service: "GFE".to_string() },
+            provider: CloudProvider::GCP {
+                service: "GFE".to_string(),
+            },
             service: Some("GFE".to_string()),
             region: None,
         });
@@ -198,7 +186,9 @@ pub fn detect_cloud_provider(headers: &HeaderMap, _ip: Option<String>) -> Option
 
     if headers.get("x-azure-ref").is_some() {
         return Some(CloudInfo {
-            provider: CloudProvider::Azure { service: "Azure CDN".to_string() },
+            provider: CloudProvider::Azure {
+                service: "Azure CDN".to_string(),
+            },
             service: Some("Azure CDN".to_string()),
             region: None,
         });
@@ -287,33 +277,44 @@ pub fn detect_cloud_provider(headers: &HeaderMap, _ip: Option<String>) -> Option
 pub fn analyze_cookies(headers: &HeaderMap) -> (Vec<CookieInfo>, Vec<SecurityFinding>) {
     let mut cookies = Vec::new();
     let mut findings = Vec::new();
-    
+
     if let Some(set_cookie) = headers.get_all("set-cookie").iter().next() {
         let header_str = set_cookie.to_str().unwrap_or("");
         for cookie_str in header_str.split(',') {
             let parts: Vec<&str> = cookie_str.split(';').collect();
-            if parts.is_empty() { continue; }
-            
+            if parts.is_empty() {
+                continue;
+            }
+
             let name_value: Vec<&str> = parts[0].splitn(2, '=').collect();
-            if name_value.len() != 2 { continue; }
-            
+            if name_value.len() != 2 {
+                continue;
+            }
+
             let name = name_value[0].trim().to_string();
-            let secure = parts.iter().any(|p| p.trim().eq_ignore_ascii_case("Secure"));
-            let http_only = parts.iter().any(|p| p.trim().eq_ignore_ascii_case("HttpOnly"));
-            let same_site = parts.iter()
+            let secure = parts
+                .iter()
+                .any(|p| p.trim().eq_ignore_ascii_case("Secure"));
+            let http_only = parts
+                .iter()
+                .any(|p| p.trim().eq_ignore_ascii_case("HttpOnly"));
+            let same_site = parts
+                .iter()
                 .find(|p| p.trim().to_lowercase().starts_with("samesite"))
                 .map(|p| p.split('=').nth(1).unwrap_or("").trim().to_string());
             let same_site_for_check = same_site.clone();
-            let path = parts.iter()
+            let path = parts
+                .iter()
                 .find(|p| p.trim().to_lowercase().starts_with("path"))
                 .and_then(|p| p.split('=').nth(1))
                 .map(|s| s.trim().to_string())
                 .unwrap_or_default();
-            let expires = parts.iter()
+            let expires = parts
+                .iter()
                 .find(|p| p.trim().to_lowercase().starts_with("expires"))
                 .and_then(|p| p.split('=').nth(1))
                 .map(|s| s.trim().to_string());
-            
+
             cookies.push(CookieInfo {
                 name: name.clone(),
                 value_length: name_value[1].len(),
@@ -323,12 +324,12 @@ pub fn analyze_cookies(headers: &HeaderMap) -> (Vec<CookieInfo>, Vec<SecurityFin
                 path,
                 expires,
             });
-            
-            let is_session = name.to_lowercase().contains("session") 
-                || name.to_lowercase().contains("auth") 
+
+            let is_session = name.to_lowercase().contains("session")
+                || name.to_lowercase().contains("auth")
                 || name.to_lowercase().contains("token")
                 || name.to_lowercase().contains("jwt");
-            
+
             if is_session && !http_only {
                 findings.push(SecurityFinding {
                     id: "session-cookie-missing-httponly".to_string(),
@@ -339,7 +340,7 @@ pub fn analyze_cookies(headers: &HeaderMap) -> (Vec<CookieInfo>, Vec<SecurityFin
                     evidence: format!("Cookie '{}' is a session cookie but lacks HttpOnly", name),
                 });
             }
-            
+
             if same_site_for_check.is_none() {
                 findings.push(SecurityFinding {
                     id: "cookie-missing-samesite".to_string(),
@@ -352,7 +353,7 @@ pub fn analyze_cookies(headers: &HeaderMap) -> (Vec<CookieInfo>, Vec<SecurityFin
             }
         }
     }
-    
+
     (cookies, findings)
 }
 
@@ -367,7 +368,9 @@ pub fn detect_waf(headers: &HeaderMap, body: &str) -> WafInfo {
     } else if headers.get("x-sucuri-id").is_some() {
         waf_name = Some("Sucuri".to_string());
         evidence = "x-sucuri-id header present".to_string();
-    } else if headers.get("akamai-x-cache").is_some() || headers.get("akamai-x-request-id").is_some() {
+    } else if headers.get("akamai-x-cache").is_some()
+        || headers.get("akamai-x-request-id").is_some()
+    {
         waf_name = Some("Akamai".to_string());
         evidence = "akamai header present".to_string();
     } else if let Some(val) = header_value(headers, "x-cdn") {
@@ -423,10 +426,10 @@ pub fn detect_waf(headers: &HeaderMap, body: &str) -> WafInfo {
 pub fn analyze_redirect(headers: &HeaderMap, current_url: &str) -> Option<RedirectInfo> {
     let location = headers.get("location")?;
     let location_str = location.to_str().ok()?;
-    
+
     let current_is_https = current_url.starts_with("https://");
     let new_is_http = location_str.starts_with("http://");
-    
+
     Some(RedirectInfo {
         total_redirects: 1,
         final_url: Some(location_str.to_string()),
@@ -436,12 +439,20 @@ pub fn analyze_redirect(headers: &HeaderMap, current_url: &str) -> Option<Redire
 }
 
 fn is_external_redirect(current: &str, target: &str) -> bool {
-    if !target.starts_with("http") { return false; }
-    if target.starts_with(current) { return false; }
-    
-    let current_host = Url::parse(current).ok().and_then(|u| u.host_str().map(|h| h.to_string()));
-    let target_host = Url::parse(target).ok().and_then(|u| u.host_str().map(|h| h.to_string()));
-    
+    if !target.starts_with("http") {
+        return false;
+    }
+    if target.starts_with(current) {
+        return false;
+    }
+
+    let current_host = Url::parse(current)
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.to_string()));
+    let target_host = Url::parse(target)
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.to_string()));
+
     current_host != target_host
 }
 
@@ -505,7 +516,8 @@ pub fn analyze_security_headers(headers: &HeaderMap) -> Vec<SecurityFinding> {
                 category: "security_headers".to_string(),
                 severity: Severity::Low,
                 title: "Weak X-Frame-Options value".to_string(),
-                explanation: "Only DENY or SAMEORIGIN reliably prevent unauthorized framing.".to_string(),
+                explanation: "Only DENY or SAMEORIGIN reliably prevent unauthorized framing."
+                    .to_string(),
                 evidence: format!("x-frame-options={value}"),
             });
         }
@@ -518,7 +530,8 @@ pub fn analyze_security_headers(headers: &HeaderMap) -> Vec<SecurityFinding> {
                 category: "security_headers".to_string(),
                 severity: Severity::Low,
                 title: "Weak X-Content-Type-Options value".to_string(),
-                explanation: "Set X-Content-Type-Options to nosniff to prevent MIME sniffing.".to_string(),
+                explanation: "Set X-Content-Type-Options to nosniff to prevent MIME sniffing."
+                    .to_string(),
                 evidence: format!("x-content-type-options={value}"),
             });
         }
@@ -537,8 +550,9 @@ pub fn analyze_security_headers(headers: &HeaderMap) -> Vec<SecurityFinding> {
                 category: "security_headers".to_string(),
                 severity: Severity::Low,
                 title: "HSTS max-age is short".to_string(),
-                explanation: "A short HSTS duration can reduce HTTPS downgrade protection effectiveness."
-                    .to_string(),
+                explanation:
+                    "A short HSTS duration can reduce HTTPS downgrade protection effectiveness."
+                        .to_string(),
                 evidence: format!("strict-transport-security={value}"),
             });
         }
@@ -582,7 +596,9 @@ pub fn analyze_security_headers(headers: &HeaderMap) -> Vec<SecurityFinding> {
                 category: "information_disclosure".to_string(),
                 severity: Severity::Low,
                 title: "Server version leakage".to_string(),
-                explanation: "Server version details can help attackers pick known vulnerabilities.".to_string(),
+                explanation:
+                    "Server version details can help attackers pick known vulnerabilities."
+                        .to_string(),
                 evidence: format!("server={value}"),
             });
         }
@@ -594,7 +610,8 @@ pub fn analyze_security_headers(headers: &HeaderMap) -> Vec<SecurityFinding> {
             category: "information_disclosure".to_string(),
             severity: Severity::Low,
             title: "X-Powered-By header exposed".to_string(),
-            explanation: "Technology banners provide fingerprinting data for attackers.".to_string(),
+            explanation: "Technology banners provide fingerprinting data for attackers."
+                .to_string(),
             evidence: format!("x-powered-by={value}"),
         });
     }
@@ -605,7 +622,8 @@ pub fn analyze_security_headers(headers: &HeaderMap) -> Vec<SecurityFinding> {
             category: "information_disclosure".to_string(),
             severity: Severity::Low,
             title: "ASP.NET version exposed".to_string(),
-            explanation: "ASP.NET version details can help attackers target known vulnerabilities.".to_string(),
+            explanation: "ASP.NET version details can help attackers target known vulnerabilities."
+                .to_string(),
             evidence: format!("x-aspnet-version={value}"),
         });
     }
@@ -626,26 +644,26 @@ pub fn analyze_security_headers(headers: &HeaderMap) -> Vec<SecurityFinding> {
 
 pub fn parse_rate_limit_headers(headers: &HeaderMap) -> RateLimitInfo {
     let mut info = RateLimitInfo::default();
-    
+
     if let Some(v) = headers.get("x-ratelimit-limit") {
         if let Ok(s) = v.to_str() {
             info.limit = s.parse().ok();
             info.detected = true;
         }
     }
-    
+
     if let Some(v) = headers.get("x-ratelimit-remaining") {
         if let Ok(s) = v.to_str() {
             info.remaining = s.parse().ok();
         }
     }
-    
+
     if let Some(v) = headers.get("x-ratelimit-reset") {
         if let Ok(s) = v.to_str() {
             info.reset = s.parse().ok();
         }
     }
-    
+
     if let Some(v) = headers.get("retry-after") {
         if let Ok(s) = v.to_str() {
             info.retry_after = s.parse().ok().or_else(|| {
@@ -655,7 +673,7 @@ pub fn parse_rate_limit_headers(headers: &HeaderMap) -> RateLimitInfo {
             });
         }
     }
-    
+
     if let Some(v) = headers.get("x-rate-limit-remaining") {
         if let Ok(s) = v.to_str() {
             info.remaining = s.parse().ok();
@@ -667,30 +685,36 @@ pub fn parse_rate_limit_headers(headers: &HeaderMap) -> RateLimitInfo {
             info.limit = s.parse().ok();
         }
     }
-    
+
     info
 }
 
-pub fn analyze_cache_headers(url: &str, headers: &HeaderMap) -> (CacheAnalysis, Vec<SecurityFinding>) {
-    let cache_control = headers.get("cache-control")
+pub fn analyze_cache_headers(
+    url: &str,
+    headers: &HeaderMap,
+) -> (CacheAnalysis, Vec<SecurityFinding>) {
+    let cache_control = headers
+        .get("cache-control")
         .and_then(|v| v.to_str().ok())
         .map(String::from);
-    let expires = headers.get("expires")
+    let expires = headers
+        .get("expires")
         .and_then(|v| v.to_str().ok())
         .map(String::from);
-    let pragma = headers.get("pragma")
+    let pragma = headers
+        .get("pragma")
         .and_then(|v| v.to_str().ok())
         .map(String::from);
-    
+
     let mut findings = Vec::new();
-    
-    let is_sensitive = url.contains("login") 
-        || url.contains("admin") 
+
+    let is_sensitive = url.contains("login")
+        || url.contains("admin")
         || url.contains("auth")
         || url.contains("dashboard")
         || url.contains("profile")
         || url.contains("account");
-    
+
     if is_sensitive {
         if let Some(cc) = &cache_control {
             if !cc.contains("no-store") && !cc.contains("no-cache") && !cc.contains("private") {
@@ -699,7 +723,8 @@ pub fn analyze_cache_headers(url: &str, headers: &HeaderMap) -> (CacheAnalysis, 
                     category: "caching".to_string(),
                     severity: Severity::Medium,
                     title: "Sensitive endpoint allows caching".to_string(),
-                    explanation: "Endpoints containing login, admin, auth should not be cached.".to_string(),
+                    explanation: "Endpoints containing login, admin, auth should not be cached."
+                        .to_string(),
                     evidence: format!("Cache-Control: {} on sensitive URL {}", cc, url),
                 });
             }
@@ -709,13 +734,21 @@ pub fn analyze_cache_headers(url: &str, headers: &HeaderMap) -> (CacheAnalysis, 
                 category: "caching".to_string(),
                 severity: Severity::Low,
                 title: "Sensitive endpoint missing Cache-Control".to_string(),
-                explanation: "Sensitive URLs should explicitly set cache control headers.".to_string(),
+                explanation: "Sensitive URLs should explicitly set cache control headers."
+                    .to_string(),
                 evidence: format!("No Cache-Control header on {}", url),
             });
         }
     }
-    
-    (CacheAnalysis { cache_control, expires, pragma }, findings)
+
+    (
+        CacheAnalysis {
+            cache_control,
+            expires,
+            pragma,
+        },
+        findings,
+    )
 }
 
 pub fn analyze_information_disclosure(
@@ -732,8 +765,9 @@ pub fn analyze_information_disclosure(
             category: "information_disclosure".to_string(),
             severity: Severity::High,
             title: "Stack trace disclosed in response".to_string(),
-            explanation: "Stack traces reveal internal code paths and frameworks, aiding targeted exploits."
-                .to_string(),
+            explanation:
+                "Stack traces reveal internal code paths and frameworks, aiding targeted exploits."
+                    .to_string(),
             evidence: "body contains stack trace markers".to_string(),
         });
     }
@@ -751,7 +785,8 @@ pub fn analyze_information_disclosure(
 
     for observation in exposed_paths {
         let lowered_snippet = observation.body_snippet.to_ascii_lowercase();
-        let (severity, title) = if observation.path == "/.env" || observation.path == "/.git/config" {
+        let (severity, title) = if observation.path == "/.env" || observation.path == "/.git/config"
+        {
             (Severity::High, "Sensitive file exposed")
         } else if observation.path == "/server-status" || observation.path == "/phpinfo.php" {
             (Severity::Medium, "Diagnostic endpoint exposed")
@@ -767,8 +802,9 @@ pub fn analyze_information_disclosure(
             category: "information_disclosure".to_string(),
             severity,
             title: title.to_string(),
-            explanation: "Publicly accessible debug/config endpoints can leak internal deployment details."
-                .to_string(),
+            explanation:
+                "Publicly accessible debug/config endpoints can leak internal deployment details."
+                    .to_string(),
             evidence: format!(
                 "path={} status={} snippet={}",
                 observation.path, observation.status_code, lowered_snippet
@@ -779,7 +815,11 @@ pub fn analyze_information_disclosure(
     findings
 }
 
-pub async fn check_trace_method(client: &reqwest::Client, base_url: &str, user_agent: &str) -> bool {
+pub async fn check_trace_method(
+    client: &reqwest::Client,
+    base_url: &str,
+    user_agent: &str,
+) -> bool {
     let target = format!("{}/", base_url.trim_end_matches('/'));
     if let Ok(resp) = client
         .request(reqwest::Method::TRACE, &target)
@@ -892,7 +932,11 @@ fn looks_like_stack_trace(body: &str) -> bool {
         "undefined index:",
         "line ",
     ];
-    markers.iter().filter(|marker| body.contains(**marker)).count() >= 2
+    markers
+        .iter()
+        .filter(|marker| body.contains(**marker))
+        .count()
+        >= 2
 }
 
 fn contains_version_leak(value: &str) -> bool {
@@ -923,7 +967,10 @@ fn looks_like_debug_info(body: &str) -> bool {
         "thread dump",
         "profiling enabled",
     ];
-    let count = markers.iter().filter(|marker| body.contains(**marker)).count();
+    let count = markers
+        .iter()
+        .filter(|marker| body.contains(**marker))
+        .count();
     count >= 2
 }
 
@@ -933,8 +980,8 @@ mod tests {
         analyze_information_disclosure, analyze_security_headers, contains_version_leak,
         detect_cloud_provider, detect_waf, ExposedPathObservation, Severity,
     };
-    use std::collections::HashSet;
     use reqwest::header::{HeaderMap, HeaderValue};
+    use std::collections::HashSet;
 
     #[test]
     fn classifies_missing_headers_with_severity() {
@@ -943,9 +990,12 @@ mod tests {
         assert!(findings
             .iter()
             .any(|f| f.id == "missing-content-security-policy" && f.severity == Severity::Medium));
-        assert!(findings
-            .iter()
-            .any(|f| f.id == "missing-strict-transport-security" && f.severity == Severity::Medium));
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.id == "missing-strict-transport-security"
+                    && f.severity == Severity::Medium)
+        );
         assert!(findings
             .iter()
             .any(|f| f.id == "missing-referrer-policy" && f.severity == Severity::Low));
@@ -1021,8 +1071,14 @@ mod tests {
             .filter(|f| f.id == "x-powered-by-disclosure")
             .count();
 
-        assert_eq!(server_leak_count, 1, "server-version-leak should appear exactly once");
-        assert_eq!(powered_by_count, 0, "x-powered-by-disclosure should not appear in analyze_information_disclosure");
+        assert_eq!(
+            server_leak_count, 1,
+            "server-version-leak should appear exactly once"
+        );
+        assert_eq!(
+            powered_by_count, 0,
+            "x-powered-by-disclosure should not appear in analyze_information_disclosure"
+        );
     }
 
     #[test]
@@ -1036,7 +1092,11 @@ mod tests {
         let findings = analyze_security_headers(&headers);
         let ids: Vec<_> = findings.iter().map(|f| f.id.clone()).collect();
         let unique: HashSet<_> = ids.iter().collect();
-        assert_eq!(ids.len(), unique.len(), "Security headers findings should not have duplicate IDs");
+        assert_eq!(
+            ids.len(),
+            unique.len(),
+            "Security headers findings should not have duplicate IDs"
+        );
     }
 
     #[test]
@@ -1085,7 +1145,11 @@ mod tests {
         headers.insert("cf-ray", HeaderValue::from_static("abc123"));
         headers.insert("x-sucuri-id", HeaderValue::from_static("x"));
         let waf = detect_waf(&headers, "");
-        assert_eq!(waf.name, Some("Cloudflare".to_string()), "cf-ray should take priority over x-sucuri-id");
+        assert_eq!(
+            waf.name,
+            Some("Cloudflare".to_string()),
+            "cf-ray should take priority over x-sucuri-id"
+        );
     }
 
     #[test]
@@ -1103,8 +1167,14 @@ mod tests {
     #[test]
     fn sanitize_id_removes_special_chars() {
         assert_eq!(super::sanitize_id("/.env"), "--env".to_string());
-        assert_eq!(super::sanitize_id("/actuator/env"), "-actuator-env".to_string());
-        assert_eq!(super::sanitize_id("/wp-config.php"), "-wp-config-php".to_string());
+        assert_eq!(
+            super::sanitize_id("/actuator/env"),
+            "-actuator-env".to_string()
+        );
+        assert_eq!(
+            super::sanitize_id("/wp-config.php"),
+            "-wp-config-php".to_string()
+        );
         assert_eq!(super::sanitize_id("simple"), "simple".to_string());
     }
 
@@ -1119,7 +1189,10 @@ mod tests {
     fn analyze_security_headers_handles_empty() {
         let headers = HeaderMap::new();
         let findings = analyze_security_headers(&headers);
-        assert!(findings.len() >= 6, "Should report all missing security headers");
+        assert!(
+            findings.len() >= 6,
+            "Should report all missing security headers"
+        );
     }
 
     #[test]
@@ -1245,7 +1318,10 @@ mod tests {
     fn cloud_provider_vercel_detection() {
         let mut headers = HeaderMap::new();
         headers.insert("x-vercel-id", HeaderValue::from_static("abc"));
-        headers.insert("x-vercel-deployment-url", HeaderValue::from_static("my-app.vercel.app"));
+        headers.insert(
+            "x-vercel-deployment-url",
+            HeaderValue::from_static("my-app.vercel.app"),
+        );
         let info = detect_cloud_provider(&headers, None);
         assert!(info.is_some());
         match info.unwrap().provider {

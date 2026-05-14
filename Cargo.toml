@@ -10,7 +10,7 @@ homepage = "https://github.com/Openxosdev/openxos-probe"
 documentation = "https://github.com/Openxosdev/openxos-probe#readme"
 keywords = ["security", "bug-bounty", "reconnaissance", "http", "fingerprinting"]
 categories = ["command-line-utilities", "network-programming"]
-rust-version = "1.70"
+rust-version = "1.80"
 
 [[bin]]
 name = "openxos-probe"
@@ -49,9 +49,3 @@ strip = true
 
 [profile.dev]
 split-debuginfo = "packed"
-
-[target.aarch64-unknown-linux-gnu]
-rustflags = ["-C", "target-cpu=generic"]
-
-[target.i686-unknown-linux-gnu]
-rustflags = ["-C", "target-cpu=generic"]

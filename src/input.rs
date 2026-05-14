@@ -5,25 +5,19 @@ use std::path::Path;
 use std::sync::LazyLock;
 use url::Url;
 
-static IPV4_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
-    regex::Regex::new(r"^(\d{1,3}\.){3}\d{1,3}$").unwrap()
-});
+static IPV4_REGEX: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"^(\d{1,3}\.){3}\d{1,3}$").unwrap());
 
-static IPV6_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
-    regex::Regex::new(r":.*:").unwrap()
-});
+static IPV6_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r":.*:").unwrap());
 
-static LABEL_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
-    regex::Regex::new(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$").unwrap()
-});
+static LABEL_REGEX: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$").unwrap());
 
-static HOSTNAME_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
-    regex::Regex::new(r"^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$").unwrap()
-});
+static HOSTNAME_REGEX: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$").unwrap());
 
-static INVALID_CHARS_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
-    regex::Regex::new(r"[^\x20-\x7E]").unwrap()
-});
+static INVALID_CHARS_REGEX: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"[^\x20-\x7E]").unwrap());
 
 static SINKHOLE_DOMAINS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     HashSet::from([
@@ -41,15 +35,8 @@ static SINKHOLE_DOMAINS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     ])
 });
 
-static RESERVED_DOMAINS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
-    HashSet::from([
-        "0.0.0.0",
-        "255.255.255.255",
-        "127.0.0.1",
-        "::1",
-        "fe80::1",
-    ])
-});
+static RESERVED_DOMAINS: LazyLock<HashSet<&'static str>> =
+    LazyLock::new(|| HashSet::from(["0.0.0.0", "255.255.255.255", "127.0.0.1", "::1", "fe80::1"]));
 
 #[derive(Debug, Clone)]
 pub struct DomainValidationStats {
@@ -70,7 +57,8 @@ pub struct DomainParseResult {
 
 #[allow(dead_code)]
 pub fn load_domains(input: &Path) -> Result<Vec<String>> {
-    let content = fs::read_to_string(input).with_context(|| format!("failed to read {:?}", input))?;
+    let content =
+        fs::read_to_string(input).with_context(|| format!("failed to read {:?}", input))?;
     Ok(parse_domains(&content).domains)
 }
 
@@ -204,7 +192,11 @@ fn validate_ipv4(host: &str) -> Option<String> {
 
     let first_octet: u32 = octets[0].parse().ok()?;
 
-    if first_octet == 0 || first_octet == 127 || (224..=239).contains(&first_octet) || first_octet >= 240 {
+    if first_octet == 0
+        || first_octet == 127
+        || (224..=239).contains(&first_octet)
+        || first_octet >= 240
+    {
         return None;
     }
 
@@ -314,12 +306,8 @@ pub fn categorize_domain(domain: &str) -> DomainCategory {
         "xyz" | "top" | "club" | "online" | "site" | "website" | "space" | "work" | "fun" => {
             DomainCategory::CheapTld
         }
-        "info" | "biz" | "name" | "pro" | "mobi" | "tel" => {
-            DomainCategory::GenericTld
-        }
-        "org" | "net" | "edu" | "gov" | "mil" => {
-            DomainCategory::OrgTld
-        }
+        "info" | "biz" | "name" | "pro" | "mobi" | "tel" => DomainCategory::GenericTld,
+        "org" | "net" | "edu" | "gov" | "mil" => DomainCategory::OrgTld,
         "com" | "co" | "uk" | "de" | "fr" | "jp" | "cn" | "ru" | "br" | "in" | "au" | "ca" => {
             DomainCategory::CommercialTld
         }
@@ -398,7 +386,10 @@ mod tests {
 
     #[test]
     fn normalizes_valid_domains() {
-        assert_eq!(normalize_domain("EXAMPLE.COM"), Some("example.com".to_string()));
+        assert_eq!(
+            normalize_domain("EXAMPLE.COM"),
+            Some("example.com".to_string())
+        );
         assert_eq!(
             normalize_domain("https://api.example.com/"),
             Some("api.example.com".to_string())
@@ -457,18 +448,9 @@ mod tests {
             categorize_domain("example.com"),
             DomainCategory::CommercialTld
         );
-        assert_eq!(
-            categorize_domain("api.tech.io"),
-            DomainCategory::TechTld
-        );
-        assert_eq!(
-            categorize_domain("example.xyz"),
-            DomainCategory::CheapTld
-        );
-        assert_eq!(
-            categorize_domain("8.8.8.8"),
-            DomainCategory::IpAddress
-        );
+        assert_eq!(categorize_domain("api.tech.io"), DomainCategory::TechTld);
+        assert_eq!(categorize_domain("example.xyz"), DomainCategory::CheapTld);
+        assert_eq!(categorize_domain("8.8.8.8"), DomainCategory::IpAddress);
         assert_eq!(
             categorize_domain("example.unknown"),
             DomainCategory::OtherTld
@@ -478,7 +460,7 @@ mod tests {
         assert_eq!(categorize_domain("example.edu"), DomainCategory::OrgTld);
     }
 
-#[test]
+    #[test]
     fn tracks_validation_stats() {
         let content = "# comment\n\n.example.com\ngmail.com\ngmail.com\n127.0.0.1";
         let result = parse_domains(content);
@@ -546,12 +528,16 @@ mod tests {
 
     #[test]
     fn handles_full_width_chars() {
-        assert!(normalize_domain("\u{FF21}\u{FF25}\u{FF38}\u{FF34}\u{FF2F}\u{FF2C}\u{FF2F}\u{FF2D}").is_none());
+        assert!(normalize_domain(
+            "\u{FF21}\u{FF25}\u{FF38}\u{FF34}\u{FF2F}\u{FF2C}\u{FF2F}\u{FF2D}"
+        )
+        .is_none());
     }
 
     #[test]
     fn parse_domains_tracks_all_stats() {
-        let content = "# comment line\n\n\ninvalid!@#\ngithub.com\ngithub.com\ngoogle.com\n127.0.0.1";
+        let content =
+            "# comment line\n\n\ninvalid!@#\ngithub.com\ngithub.com\ngoogle.com\n127.0.0.1";
         let result = parse_domains(content);
 
         assert_eq!(result.stats.total_lines, 8);

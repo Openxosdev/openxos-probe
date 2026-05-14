@@ -16,16 +16,34 @@ Examples:
 For more information, visit: https://github.com/Openxosdev/openxos-probe"
 )]
 pub struct Args {
-    #[arg(short, long, value_name = "FILE", help = "Input file containing subdomain list (one per line)")]
+    #[arg(
+        short,
+        long,
+        value_name = "FILE",
+        help = "Input file containing subdomain list (one per line)"
+    )]
     pub input: Option<PathBuf>,
 
-    #[arg(short, long, value_enum, help = "Output format: terminal, json, or csv")]
+    #[arg(
+        short,
+        long,
+        value_enum,
+        help = "Output format: terminal, json, or csv"
+    )]
     pub output: Option<OutputFormat>,
 
-    #[arg(long, value_name = "FILE", help = "Output file path (writes to stdout if not specified)")]
+    #[arg(
+        long,
+        value_name = "FILE",
+        help = "Output file path (writes to stdout if not specified)"
+    )]
     pub output_file: Option<PathBuf>,
 
-    #[arg(long, value_name = "FILE", help = "SQLite database path for persistent storage")]
+    #[arg(
+        long,
+        value_name = "FILE",
+        help = "SQLite database path for persistent storage"
+    )]
     pub db: Option<PathBuf>,
 
     #[arg(
@@ -43,7 +61,11 @@ pub struct Args {
     )]
     pub timeout_secs: Option<u64>,
 
-    #[arg(long = "retries", value_name = "N", help = "Number of retry attempts on failure (default: 1)")]
+    #[arg(
+        long = "retries",
+        value_name = "N",
+        help = "Number of retry attempts on failure (default: 1)"
+    )]
     pub retries: Option<u8>,
 
     #[arg(
@@ -66,11 +88,7 @@ pub struct Args {
     )]
     pub secure: bool,
 
-    #[arg(
-        long,
-        value_name = "FILE",
-        help = "Path to TOML configuration file"
-    )]
+    #[arg(long, value_name = "FILE", help = "Path to TOML configuration file")]
     pub config: Option<PathBuf>,
 
     #[arg(
@@ -82,7 +100,12 @@ pub struct Args {
     #[arg(long, help = "Enable continuous monitoring mode")]
     pub monitor: bool,
 
-    #[arg(long, value_name = "SECONDS", default_value = "60", help = "Monitoring interval in seconds")]
+    #[arg(
+        long,
+        value_name = "SECONDS",
+        default_value = "60",
+        help = "Monitoring interval in seconds"
+    )]
     pub interval: u64,
 
     #[arg(long, value_name = "URL", help = "Webhook URL for scan notifications")]
@@ -91,10 +114,16 @@ pub struct Args {
     #[arg(long, help = "Enable on-demand CVE lookup for detected technologies")]
     pub cve_lookup: bool,
 
-    #[arg(long, help = "Fast mode - skip slow checks (WebSocket, GraphQL, API docs, SSRF)")]
+    #[arg(
+        long,
+        help = "Fast mode - skip slow checks (WebSocket, GraphQL, API docs, SSRF)"
+    )]
     pub fast: bool,
 
-    #[arg(long, help = "Aggressive mode - enable HTTP method enumeration and other intrusive checks")]
+    #[arg(
+        long,
+        help = "Aggressive mode - enable HTTP method enumeration and other intrusive checks"
+    )]
     pub aggressive: bool,
 }
 

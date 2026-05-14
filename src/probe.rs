@@ -1,10 +1,13 @@
 use crate::config::AppConfig;
 use crate::security::{
-    analyze_cookies, analyze_information_disclosure, analyze_redirect, analyze_security_headers, check_trace_method, detect_cloud_provider, detect_waf,
-    ContentTypeMismatch, CookieInfo, ExposedPathObservation, MethodEnumerationResult, RateLimitInfo, RedirectInfo, SecurityFinding, Severity, WafInfo, CacheAnalysis,
+    analyze_cookies, analyze_information_disclosure, analyze_redirect, analyze_security_headers,
+    check_trace_method, detect_cloud_provider, detect_waf, CacheAnalysis, ContentTypeMismatch,
+    CookieInfo, ExposedPathObservation, MethodEnumerationResult, RateLimitInfo, RedirectInfo,
+    SecurityFinding, Severity, WafInfo,
 };
 use crate::technology::{
-    detect_from_headers_and_body, path_probe_matches, rank_matches, LoadedSignatures, TechnologyMatch,
+    detect_from_headers_and_body, path_probe_matches, rank_matches, LoadedSignatures,
+    TechnologyMatch,
 };
 use crate::tls_analysis::TlsInfo;
 use anyhow::{Context, Result};
@@ -87,9 +90,13 @@ impl TimingStats {
     pub fn new(ttfb: Duration, total: Duration, content_length: Option<u64>) -> Self {
         let download_speed = content_length.map(|len| {
             let total_secs = total.as_secs_f64();
-            if total_secs > 0.0 { (len as f64 / total_secs) as u64 } else { 0 }
+            if total_secs > 0.0 {
+                (len as f64 / total_secs) as u64
+            } else {
+                0
+            }
         });
-        
+
         Self {
             ttfb_ms: ttfb.as_millis() as u64,
             total_ms: total.as_millis() as u64,
@@ -160,13 +167,11 @@ impl ProbeConfig {
     pub fn from_config(config: &AppConfig) -> Result<Self> {
         let signatures = LoadedSignatures::load_from_dir(&std::path::PathBuf::from("signatures"))?;
         if signatures.signatures.is_empty() {
-            eprintln!(
-                "Warning: No technology signatures loaded. Check 'signatures/' directory."
-            );
+            eprintln!("Warning: No technology signatures loaded. Check 'signatures/' directory.");
         }
         Ok(Self {
-            concurrency: config.concurrency.max(1).min(500),
-            timeout_secs: config.timeout_secs.max(1).min(300),
+            concurrency: config.concurrency.clamp(1, 500),
+            timeout_secs: config.timeout_secs.clamp(1, 300),
             retries: config.retries,
             user_agent: config.user_agent.clone(),
             insecure: config.insecure,
@@ -179,13 +184,17 @@ impl ProbeConfig {
 }
 
 static DNS_CACHE: std::sync::LazyLock<DashMap<String, (Vec<IpAddr>, Instant)>> =
-    std::sync::LazyLock::new(|| DashMap::new());
+    std::sync::LazyLock::new(DashMap::new);
 
 const DNS_TTL: Duration = Duration::from_secs(300);
 
 #[allow(dead_code)]
 const TAKEOVER_SIGNATURES: &[(&str, &str, &str)] = &[
-    ("There is no app configured at that hostname", "Heroku", "heroku"),
+    (
+        "There is no app configured at that hostname",
+        "Heroku",
+        "heroku",
+    ),
     ("No such app", "Heroku", "heroku"),
     ("404 - Page Not Found", "GitHub Pages", "github-pages"),
     ("The specified bucket does not exist", "AWS S3", "aws-s3"),
@@ -376,42 +385,66 @@ async fn probe_protocol(
                 let body_time_ms = body_started.elapsed().as_millis();
                 let response_time_ms = network_time_ms + body_time_ms;
 
-let (technologies, mut security_findings, probes, trace_enabled, api_docs, websocket, graphql, cloud_info, tls_info) = tokio::join!(
+                let (
+                    technologies,
+                    mut security_findings,
+                    probes,
+                    trace_enabled,
+                    api_docs,
+                    websocket,
+                    graphql,
+                    cloud_info,
+                    tls_info,
+                ) = tokio::join!(
                     async {
-                        let mut tech = detect_from_headers_and_body(&config.signatures, &headers, &body);
-                        run_optional_path_probes(client, &final_url, &config.signatures, &mut tech).await;
+                        let mut tech =
+                            detect_from_headers_and_body(&config.signatures, &headers, &body);
+                        run_optional_path_probes(client, &final_url, &config.signatures, &mut tech)
+                            .await;
                         tech
                     },
-                    async {
-                        analyze_security_headers(&headers)
-                    },
-                    run_common_exposed_file_checks(client, &final_url, &config.user_agent, config.fast),
+                    async { analyze_security_headers(&headers) },
+                    run_common_exposed_file_checks(
+                        client,
+                        &final_url,
+                        &config.user_agent,
+                        config.fast
+                    ),
                     check_trace_method(client, &final_url, &config.user_agent),
                     async {
                         if config.fast {
                             Vec::new()
                         } else {
-                            tokio::time::timeout(Duration::from_secs(3), discover_api_docs(client, &final_url, &config.user_agent))
-                                .await
-                                .unwrap_or_default()
+                            tokio::time::timeout(
+                                Duration::from_secs(3),
+                                discover_api_docs(client, &final_url, &config.user_agent),
+                            )
+                            .await
+                            .unwrap_or_default()
                         }
                     },
                     async {
                         if config.fast {
                             None
                         } else {
-                            tokio::time::timeout(Duration::from_secs(3), check_websocket(client, &final_url, &config.user_agent))
-                                .await
-                                .unwrap_or(None)
+                            tokio::time::timeout(
+                                Duration::from_secs(3),
+                                check_websocket(client, &final_url, &config.user_agent),
+                            )
+                            .await
+                            .unwrap_or(None)
                         }
                     },
                     async {
                         if config.fast {
                             None
                         } else {
-                            tokio::time::timeout(Duration::from_secs(3), detect_graphql(client, &final_url, &config.user_agent))
-                                .await
-                                .unwrap_or(None)
+                            tokio::time::timeout(
+                                Duration::from_secs(3),
+                                detect_graphql(client, &final_url, &config.user_agent),
+                            )
+                            .await
+                            .unwrap_or(None)
                         }
                     },
                     async { detect_cloud_provider(&headers, None) },
@@ -428,8 +461,15 @@ let (technologies, mut security_findings, probes, trace_enabled, api_docs, webso
 
                 let takeover = check_takeover(domain, status_code, &body).await;
                 let content_type_header = headers.get("content-type").and_then(|v| v.to_str().ok());
-                let content_type_mismatch = crate::security::detect_content_type_mismatch(content_type_header, body.as_bytes());
-                let timing = Some(TimingStats::new(request_started.elapsed(), request_started.elapsed(), Some(body.len() as u64)));
+                let content_type_mismatch = crate::security::detect_content_type_mismatch(
+                    content_type_header,
+                    body.as_bytes(),
+                );
+                let timing = Some(TimingStats::new(
+                    request_started.elapsed(),
+                    request_started.elapsed(),
+                    Some(body.len() as u64),
+                ));
 
                 security_findings.extend(analyze_information_disclosure(&headers, &body, &probes));
 
@@ -445,23 +485,28 @@ let (technologies, mut security_findings, probes, trace_enabled, api_docs, webso
                         category: "information_disclosure".to_string(),
                         severity: Severity::Low,
                         title: "HTTP TRACE method enabled".to_string(),
-                        explanation: "TRACE can be used in Cross-Site Tracing attacks to steal cookies.".to_string(),
+                        explanation:
+                            "TRACE can be used in Cross-Site Tracing attacks to steal cookies."
+                                .to_string(),
                         evidence: "TRACE method returned valid response".to_string(),
                     });
                 }
                 let cookies = extract_cookies(&headers);
-                
+
                 let (detailed_cookies, cookie_findings) = analyze_cookies(&headers);
                 security_findings.extend(cookie_findings);
-                
+
                 let redirect_info = analyze_redirect(&headers, &target);
 
-let ssrf_info: Option<SsrfVectorInfo> = if config.fast {
+                let ssrf_info: Option<SsrfVectorInfo> = if config.fast {
                     None
                 } else {
-                    tokio::time::timeout(Duration::from_secs(3), check_ssrf_vectors(client, &final_url, &config.user_agent))
-                        .await
-                        .unwrap_or(None)
+                    tokio::time::timeout(
+                        Duration::from_secs(3),
+                        check_ssrf_vectors(client, &final_url, &config.user_agent),
+                    )
+                    .await
+                    .unwrap_or(None)
                 };
 
                 let method_enum = if config.aggressive {
@@ -471,7 +516,8 @@ let ssrf_info: Option<SsrfVectorInfo> = if config.fast {
                 };
 
                 let rate_limit = crate::security::parse_rate_limit_headers(&headers);
-                let (cache, cache_findings) = crate::security::analyze_cache_headers(&final_url, &headers);
+                let (cache, cache_findings) =
+                    crate::security::analyze_cache_headers(&final_url, &headers);
                 security_findings.extend(cache_findings);
 
                 return Some(ProtocolResult {
@@ -524,7 +570,7 @@ async fn probe_domain(client: &reqwest::Client, domain: &str, config: &ProbeConf
         None
     };
 
-let (http_result, https_result) = tokio::join!(
+    let (http_result, https_result) = tokio::join!(
         probe_protocol(client, domain, "http", config),
         probe_protocol(client, domain, "https", config)
     );
@@ -596,7 +642,7 @@ let (http_result, https_result) = tokio::join!(
     map_probe_failure(domain, None)
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, clippy::too_many_arguments)]
 pub fn map_probe_success(
     domain: &str,
     scheme: &str,
@@ -630,7 +676,7 @@ pub fn map_probe_success(
     )
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, clippy::too_many_arguments)]
 pub fn map_probe_success_with_both(
     domain: &str,
     scheme: &str,
@@ -694,7 +740,7 @@ pub fn map_probe_success_with_both(
         res.tls_info = p.tls_info.clone();
         res.timing = p.timing.clone();
     }
-    
+
     res
 }
 
@@ -849,24 +895,31 @@ fn looks_like_sensitive_disclosure(path: &str, body_snippet: &str) -> bool {
     let lowered = body_snippet.to_ascii_lowercase();
     match path {
         "/.env" | "/.env.bak" | "/.env.old" => {
-            lowered.contains("password") || lowered.contains("secret") || lowered.contains("db_")
-                || lowered.contains("api_key") || lowered.contains("token")
+            lowered.contains("password")
+                || lowered.contains("secret")
+                || lowered.contains("db_")
+                || lowered.contains("api_key")
+                || lowered.contains("token")
         }
         "/.git/config" | "/.git/HEAD" => {
-            lowered.contains("[core]") || lowered.contains("repositoryformatversion")
+            lowered.contains("[core]")
+                || lowered.contains("repositoryformatversion")
                 || lowered.contains("github.com")
         }
         "/.svn/entries" => lowered.contains("svn") || lowered.contains("revision"),
         "/phpinfo.php" | "/php.ini" => {
-            lowered.contains("php version") || lowered.contains("phpinfo")
+            lowered.contains("php version")
+                || lowered.contains("phpinfo")
                 || lowered.contains("system inf")
         }
         "/server-status" | "/server-info" => {
-            lowered.contains("server version") || lowered.contains("apache server status")
+            lowered.contains("server version")
+                || lowered.contains("apache server status")
                 || lowered.contains(" uptime ")
         }
         "/actuator/env" => {
-            lowered.contains("propertysources") || lowered.contains("activeprofiles")
+            lowered.contains("propertysources")
+                || lowered.contains("activeprofiles")
                 || lowered.contains("property")
         }
         "/actuator/heapdump" | "/debug" => true,
@@ -880,7 +933,9 @@ fn looks_like_sensitive_disclosure(path: &str, body_snippet: &str) -> bool {
         "/database.yml" | "/admin/config.yml" => {
             lowered.contains("database") || lowered.contains("password")
         }
-        "/credentials.json" | "/secrets.json" => lowered.contains("key") || lowered.contains("secret"),
+        "/credentials.json" | "/secrets.json" => {
+            lowered.contains("key") || lowered.contains("secret")
+        }
         "/.aws/credentials" => lowered.contains("aws") || lowered.contains("secret"),
         "/console" | "/trace" => true,
         "/swagger-ui.html" | "/api-docs" => {
@@ -899,8 +954,14 @@ async fn run_optional_path_probes(
     matches: &mut Vec<TechnologyMatch>,
 ) {
     let base = base_url.trim_end_matches('/');
-    let probes: Vec<_> = signatures.signatures.iter()
-        .flat_map(|sig| sig.path_probes.iter().map(|p| (sig.name.clone(), p.clone())))
+    let probes: Vec<_> = signatures
+        .signatures
+        .iter()
+        .flat_map(|sig| {
+            sig.path_probes
+                .iter()
+                .map(|p| (sig.name.clone(), p.clone()))
+        })
         .collect();
 
     let results: Vec<(String, String, u16)> = stream::iter(probes)
@@ -925,7 +986,9 @@ async fn run_optional_path_probes(
 
     for (name, path, status) in results {
         if let Some(existing) = matches.iter_mut().find(|m| m.name == name) {
-            existing.evidence.push(format!("path:{} status={}", path, status));
+            existing
+                .evidence
+                .push(format!("path:{} status={}", path, status));
             existing.confidence = existing.confidence.saturating_add(20).min(100);
         } else {
             matches.push(TechnologyMatch {
@@ -940,7 +1003,11 @@ async fn run_optional_path_probes(
     *matches = rank_matches(std::mem::take(matches));
 }
 
-async fn fetch_favicon_hash(client: &reqwest::Client, base_url: &str, user_agent: &str) -> Option<String> {
+async fn fetch_favicon_hash(
+    client: &reqwest::Client,
+    base_url: &str,
+    user_agent: &str,
+) -> Option<String> {
     let favicon_url = format!("{}/favicon.ico", base_url.trim_end_matches('/'));
     if let Ok(resp) = client
         .get(&favicon_url)
@@ -972,7 +1039,10 @@ struct CrtShEntry {
     name_value: Option<String>,
 }
 
-pub async fn check_ct_logs(client: &reqwest::Client, domain: &str) -> Option<CertificateTransparencyInfo> {
+pub async fn check_ct_logs(
+    client: &reqwest::Client,
+    domain: &str,
+) -> Option<CertificateTransparencyInfo> {
     let url = format!("https://crt.sh/?q=%.{}&output=json", domain);
 
     let resp = client
@@ -1018,10 +1088,9 @@ pub async fn check_ssrf_vectors(
     user_agent: &str,
 ) -> Option<SsrfVectorInfo> {
     let ssrf_params = vec![
-        "url", "uri", "path", "dest", "redirect", "link",
-        "file", "download", "src", "source", "href",
-        "domain", "callback", "return", "next", "data",
-        "q", "amp", "ti", "to", "out", "view",
+        "url", "uri", "path", "dest", "redirect", "link", "file", "download", "src", "source",
+        "href", "domain", "callback", "return", "next", "data", "q", "amp", "ti", "to", "out",
+        "view",
     ];
 
     let test_targets = vec![
@@ -1049,16 +1118,22 @@ pub async fn check_ssrf_vectors(
             let headers = resp.headers().clone();
             let body = resp.text().await.unwrap_or_default().to_lowercase();
 
-            if body.contains("ami-id") || body.contains("instance-id")
+            if body.contains("ami-id")
+                || body.contains("instance-id")
                 || body.contains("metadata.google.internal")
-                || body.contains("internal ip") || body.contains("ec2")
+                || body.contains("internal ip")
+                || body.contains("ec2")
                 || body.contains("aws access")
             {
                 vulnerable_params.push(param.to_string());
                 break;
             }
 
-            if headers.get("server").map(|s| s.to_str().unwrap_or("").contains("metadata")).unwrap_or(false) {
+            if headers
+                .get("server")
+                .map(|s| s.to_str().unwrap_or("").contains("metadata"))
+                .unwrap_or(false)
+            {
                 vulnerable_params.push(param.to_string());
                 break;
             }
@@ -1112,7 +1187,12 @@ pub async fn check_websocket(
         let headers = resp.headers();
         if headers
             .get("upgrade")
-            .map(|v| v.to_str().unwrap_or("").to_lowercase().contains("websocket"))
+            .map(|v| {
+                v.to_str()
+                    .unwrap_or("")
+                    .to_lowercase()
+                    .contains("websocket")
+            })
             .unwrap_or(false)
         {
             return Some(WebSocketInfo {
@@ -1165,14 +1245,20 @@ pub async fn discover_api_docs(
         };
 
         if resp.status().is_success() {
-            let content_type = resp.headers()
+            let content_type = resp
+                .headers()
                 .get("content-type")
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("")
                 .to_lowercase();
 
-            if content_type.contains("json") || content_type.contains("yaml") || content_type.contains("yml") {
-                if let Ok(json) = serde_json::from_str::<Value>(&resp.text().await.unwrap_or_default()) {
+            if content_type.contains("json")
+                || content_type.contains("yaml")
+                || content_type.contains("yml")
+            {
+                if let Ok(json) =
+                    serde_json::from_str::<Value>(&resp.text().await.unwrap_or_default())
+                {
                     let (doc_type, title, version) = parse_api_doc_info(&json);
                     let endpoint_count = count_endpoints(&json);
 
@@ -1200,12 +1286,14 @@ fn parse_api_doc_info(json: &Value) -> (String, Option<String>, Option<String>) 
         "Unknown".to_string()
     };
 
-    let title = json.get("info")
+    let title = json
+        .get("info")
         .and_then(|i| i.get("title"))
         .and_then(|t| t.as_str())
         .map(String::from);
 
-    let version = json.get("info")
+    let version = json
+        .get("info")
         .and_then(|i| i.get("version"))
         .and_then(|v| v.as_str())
         .map(String::from);
@@ -1299,7 +1387,7 @@ mod tests {
     use crate::probe::{map_probe_success, parse_alt_svc};
     use crate::security::WafInfo;
 
-#[test]
+    #[test]
     fn maps_success_result_shape() {
         let result = super::map_probe_success(
             "example.com",
@@ -1472,7 +1560,7 @@ mod tests {
             vec![],
         );
         let json = serde_json::to_string(&result).unwrap();
-let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert!(roundtrip.get("domain").is_some());
     }
 
@@ -1506,19 +1594,22 @@ let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
 
     #[cfg(test)]
     mod integration_tests {
-        use reqwest::header::{HeaderMap, HeaderValue};
+        use crate::probe::check_takeover;
         use crate::security::{
-            analyze_cookies, analyze_redirect, parse_rate_limit_headers,
-            analyze_cache_headers, detect_content_type_mismatch,
+            analyze_cache_headers, analyze_cookies, analyze_redirect, detect_content_type_mismatch,
+            parse_rate_limit_headers,
         };
         use crate::technology::detect_js_version;
-        use crate::probe::check_takeover;
+        use reqwest::header::{HeaderMap, HeaderValue};
 
         #[test]
         fn test_cookie_analysis_with_mock_data() {
             let mut headers = HeaderMap::new();
-            headers.append("set-cookie", HeaderValue::from_static("session_id=abc123; HttpOnly; Secure; SameSite=Strict"));
-            
+            headers.append(
+                "set-cookie",
+                HeaderValue::from_static("session_id=abc123; HttpOnly; Secure; SameSite=Strict"),
+            );
+
             let (cookies, _findings) = analyze_cookies(&headers);
             assert_eq!(cookies.len(), 1);
             assert_eq!(cookies[0].name, "session_id");
@@ -1530,17 +1621,25 @@ let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
         #[test]
         fn test_cookie_security_findings_session_without_httponly() {
             let mut headers = HeaderMap::new();
-            headers.append("set-cookie", HeaderValue::from_static("session=value123; Secure"));
-            
+            headers.append(
+                "set-cookie",
+                HeaderValue::from_static("session=value123; Secure"),
+            );
+
             let (_, findings) = analyze_cookies(&headers);
-            assert!(findings.iter().any(|f| f.id == "session-cookie-missing-httponly"));
+            assert!(findings
+                .iter()
+                .any(|f| f.id == "session-cookie-missing-httponly"));
         }
 
         #[test]
         fn test_cookie_security_findings_missing_samesite() {
             let mut headers = HeaderMap::new();
-            headers.append("set-cookie", HeaderValue::from_static("session=value123; HttpOnly; Secure"));
-            
+            headers.append(
+                "set-cookie",
+                HeaderValue::from_static("session=value123; HttpOnly; Secure"),
+            );
+
             let (_, findings) = analyze_cookies(&headers);
             assert!(findings.iter().any(|f| f.id == "cookie-missing-samesite"));
         }
@@ -1548,8 +1647,11 @@ let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
         #[test]
         fn test_redirect_analysis() {
             let mut headers = HeaderMap::new();
-            headers.append("location", HeaderValue::from_static("https://example.com/page2"));
-            
+            headers.append(
+                "location",
+                HeaderValue::from_static("https://example.com/page2"),
+            );
+
             let result = analyze_redirect(&headers, "http://example.com/page");
             assert!(result.is_some());
             let redirect = result.unwrap();
@@ -1560,8 +1662,11 @@ let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
         #[test]
         fn test_redirect_analysis_https_downgrade() {
             let mut headers = HeaderMap::new();
-            headers.append("location", HeaderValue::from_static("http://www.example.com/page"));
-            
+            headers.append(
+                "location",
+                HeaderValue::from_static("http://www.example.com/page"),
+            );
+
             let result = analyze_redirect(&headers, "https://example.com/page");
             assert!(result.is_some());
             assert!(result.unwrap().https_downgrade);
@@ -1574,7 +1679,7 @@ let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
             headers.insert("x-ratelimit-remaining", HeaderValue::from_static("50"));
             headers.insert("x-ratelimit-reset", HeaderValue::from_static("1640000000"));
             headers.insert("retry-after", HeaderValue::from_static("30"));
-            
+
             let rate_limit = parse_rate_limit_headers(&headers);
             assert!(rate_limit.detected);
             assert_eq!(rate_limit.limit, Some(100));
@@ -1588,7 +1693,7 @@ let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
             let mut headers = HeaderMap::new();
             headers.insert("x-rate-limit-limit", HeaderValue::from_static("200"));
             headers.insert("x-rate-limit-remaining", HeaderValue::from_static("100"));
-            
+
             let rate_limit = parse_rate_limit_headers(&headers);
             assert!(rate_limit.detected);
             assert_eq!(rate_limit.limit, Some(200));
@@ -1598,8 +1703,11 @@ let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
         #[test]
         fn test_cache_analysis_on_admin_url() {
             let mut headers = HeaderMap::new();
-            headers.insert("cache-control", HeaderValue::from_static("public, max-age=3600"));
-            
+            headers.insert(
+                "cache-control",
+                HeaderValue::from_static("public, max-age=3600"),
+            );
+
             let (analysis, findings) = analyze_cache_headers("https://example.com/admin", &headers);
             assert!(analysis.cache_control.is_some());
             assert!(findings.iter().any(|f| f.id == "sensitive-endpoint-cached"));
@@ -1608,8 +1716,11 @@ let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
         #[test]
         fn test_cache_analysis_private_on_sensitive() {
             let mut headers = HeaderMap::new();
-            headers.insert("cache-control", HeaderValue::from_static("private, max-age=3600"));
-            
+            headers.insert(
+                "cache-control",
+                HeaderValue::from_static("private, max-age=3600"),
+            );
+
             let (_, findings) = analyze_cache_headers("https://example.com/login", &headers);
             assert!(!findings.iter().any(|f| f.id == "sensitive-endpoint-cached"));
         }
@@ -1617,9 +1728,11 @@ let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
         #[test]
         fn test_cache_analysis_no_cache_headers() {
             let headers = HeaderMap::new();
-            
+
             let (_, findings) = analyze_cache_headers("https://example.com/admin", &headers);
-            assert!(findings.iter().any(|f| f.id == "sensitive-endpoint-no-cache-control"));
+            assert!(findings
+                .iter()
+                .any(|f| f.id == "sensitive-endpoint-no-cache-control"));
         }
 
         #[test]
@@ -1734,28 +1847,36 @@ let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
             let body = r#"react@18.2.0"#;
             let versions = detect_js_version(body);
             assert!(!versions.is_empty());
-            assert!(versions.iter().any(|v| v.name == "React" && v.version == Some("18.2.0".to_string())));
+            assert!(versions
+                .iter()
+                .any(|v| v.name == "React" && v.version == Some("18.2.0".to_string())));
         }
 
         #[test]
         fn test_js_version_detection_vue() {
             let body = r#"Vue.component("test", { version: "3.2.0" })"#;
             let versions = detect_js_version(body);
-            assert!(!versions.iter().any(|v| v.name == "Vue.js" && v.version.is_some()));
+            assert!(!versions
+                .iter()
+                .any(|v| v.name == "Vue.js" && v.version.is_some()));
         }
 
         #[test]
         fn test_js_version_detection_angular() {
             let body = r#"ng-version="14.1.0""#;
             let versions = detect_js_version(body);
-            assert!(versions.iter().any(|v| v.name == "Angular" && v.version == Some("14.1.0".to_string())));
+            assert!(versions
+                .iter()
+                .any(|v| v.name == "Angular" && v.version == Some("14.1.0".to_string())));
         }
 
         #[test]
         fn test_js_version_detection_nextjs() {
             let body = r#"next@13.4.0"#;
             let versions = detect_js_version(body);
-            assert!(versions.iter().any(|v| v.name == "Next.js" && v.version == Some("13.4.0".to_string())));
+            assert!(versions
+                .iter()
+                .any(|v| v.name == "Next.js" && v.version == Some("13.4.0".to_string())));
         }
 
         #[test]
@@ -1769,15 +1890,23 @@ let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
         fn test_js_version_detection_devtools() {
             let body = r#"__REACT_DEVTOOLS_GLOBAL_HOOK__"#;
             let versions = detect_js_version(body);
-            assert!(versions.iter().any(|v| v.name == "React DevTools" && v.is_dev_mode));
+            assert!(versions
+                .iter()
+                .any(|v| v.name == "React DevTools" && v.is_dev_mode));
         }
 
         #[test]
         fn test_cookie_analysis_multiple_cookies() {
             let mut headers = HeaderMap::new();
-            headers.append("set-cookie", HeaderValue::from_static("session=abc; HttpOnly; Secure"));
-            headers.append("set-cookie", HeaderValue::from_static("tracking=xyz; Secure"));
-            
+            headers.append(
+                "set-cookie",
+                HeaderValue::from_static("session=abc; HttpOnly; Secure"),
+            );
+            headers.append(
+                "set-cookie",
+                HeaderValue::from_static("tracking=xyz; Secure"),
+            );
+
             let (cookies, _) = analyze_cookies(&headers);
             assert_eq!(cookies.len(), 1);
         }
@@ -1785,8 +1914,11 @@ let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
         #[test]
         fn test_redirect_external_detection() {
             let mut headers = HeaderMap::new();
-            headers.append("location", HeaderValue::from_static("https://external.com/page"));
-            
+            headers.append(
+                "location",
+                HeaderValue::from_static("https://external.com/page"),
+            );
+
             let result = analyze_redirect(&headers, "http://example.com/page");
             assert!(result.is_some());
             assert!(result.unwrap().has_external_redirect);
@@ -1803,8 +1935,11 @@ let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
         #[test]
         fn test_cache_analysis_non_sensitive_url() {
             let mut headers = HeaderMap::new();
-            headers.insert("cache-control", HeaderValue::from_static("public, max-age=3600"));
-            
+            headers.insert(
+                "cache-control",
+                HeaderValue::from_static("public, max-age=3600"),
+            );
+
             let (_, findings) = analyze_cache_headers("https://example.com/blog", &headers);
             assert!(findings.is_empty());
         }
@@ -1813,7 +1948,7 @@ let roundtrip: serde_json::Value = serde_json::from_str(&json).unwrap();
         async fn test_takeover_case_insensitive() {
             let body = "THE SPECIFIED BUCKET DOES NOT EXIST";
             let result = check_takeover("bucket.s3.amazonaws.com", 404, body).await;
-assert!(result.is_some());
+            assert!(result.is_some());
+        }
     }
-}
 }

@@ -9,7 +9,11 @@ use std::path::Path;
 
 const JS_VERSION_PATTERNS: &[(&str, &str, &str)] = &[
     (r"react[@.](\d+\.\d+\.\d+)", "React", "version"),
-    (r"__REACT_DEVTOOLS_GLOBAL_HOOK__", "React DevTools", "dev_mode"),
+    (
+        r"__REACT_DEVTOOLS_GLOBAL_HOOK__",
+        "React DevTools",
+        "dev_mode",
+    ),
     (r"vue@(\d+\.\d+\.\d+)", "Vue.js", "version"),
     (r#""version"\s*[:\s"]*(\d+\.\d+\.\d+)"#, "Vue.js", "version"),
     (r#"ng-version=['"](\d+\.\d+\.\d+)"#, "Angular", "version"),
@@ -28,10 +32,10 @@ pub struct FrameworkVersion {
 
 pub fn detect_js_version(body: &str) -> Vec<FrameworkVersion> {
     let mut versions = Vec::new();
-    
+
     for (pattern, name, info_type) in JS_VERSION_PATTERNS {
         let re = Regex::new(pattern).unwrap();
-        
+
         if let Some(caps) = re.captures(body) {
             let is_dev_mode = *info_type == "dev_mode";
             let version = if *info_type == "version" {
@@ -39,8 +43,11 @@ pub fn detect_js_version(body: &str) -> Vec<FrameworkVersion> {
             } else {
                 None
             };
-            
-            if !versions.iter().any(|v: &FrameworkVersion| v.name == *name && v.version == version) {
+
+            if !versions
+                .iter()
+                .any(|v: &FrameworkVersion| v.name == *name && v.version == version)
+            {
                 versions.push(FrameworkVersion {
                     name: name.to_string(),
                     version,
@@ -49,9 +56,12 @@ pub fn detect_js_version(body: &str) -> Vec<FrameworkVersion> {
             }
         }
     }
-    
+
     if body.contains("sourceMappingURL") || body.contains("sourceMap") {
-        if !versions.iter().any(|v: &FrameworkVersion| v.name.contains("Source Maps")) {
+        if !versions
+            .iter()
+            .any(|v: &FrameworkVersion| v.name.contains("Source Maps"))
+        {
             versions.push(FrameworkVersion {
                 name: "Source Maps Exposed".to_string(),
                 version: None,
@@ -59,7 +69,7 @@ pub fn detect_js_version(body: &str) -> Vec<FrameworkVersion> {
             });
         }
     }
-    
+
     versions
 }
 
@@ -158,7 +168,8 @@ impl LoadedSignatures {
         for entry in fs::read_dir(path).with_context(|| format!("failed to read {:?}", path))? {
             let entry = entry?;
             let entry_path = entry.path();
-            if !entry_path.is_file() || entry_path.extension().and_then(|ext| ext.to_str()) != Some("json")
+            if !entry_path.is_file()
+                || entry_path.extension().and_then(|ext| ext.to_str()) != Some("json")
             {
                 continue;
             }
@@ -362,8 +373,11 @@ mod tests {
         let err_str = err.to_string();
         let has_invalid_sig = err_str.contains("invalid signature");
         let has_no_matchers = err_str.contains("has no matchers");
-        assert!(has_invalid_sig || has_no_matchers,
-            "expected error about invalid signature or no matchers, got: {}", err_str);
+        assert!(
+            has_invalid_sig || has_no_matchers,
+            "expected error about invalid signature or no matchers, got: {}",
+            err_str
+        );
         let _ = fs::remove_dir_all(&temp);
     }
 
@@ -420,7 +434,10 @@ mod tests {
         let loaded = LoadedSignatures::from_signatures(signatures).unwrap();
 
         let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert("Server", reqwest::header::HeaderValue::from_static("NGINX/1.24"));
+        headers.insert(
+            "Server",
+            reqwest::header::HeaderValue::from_static("NGINX/1.24"),
+        );
         let matches = super::detect_from_headers_and_body(&loaded, &headers, "");
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].name, "nginx");
@@ -459,7 +476,10 @@ mod tests {
         let loaded = LoadedSignatures::from_signatures(signatures).unwrap();
 
         let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert("Server", reqwest::header::HeaderValue::from_static("Apache"));
+        headers.insert(
+            "Server",
+            reqwest::header::HeaderValue::from_static("Apache"),
+        );
         let matches = super::detect_from_headers_and_body(&loaded, &headers, "");
         assert!(matches.is_empty());
     }
@@ -477,11 +497,7 @@ mod tests {
 
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert("Server", reqwest::header::HeaderValue::from_static("nginx"));
-        let matches = super::detect_from_headers_and_body(
-            &loaded,
-            &headers,
-            "<?php echo 'hello';",
-        );
+        let matches = super::detect_from_headers_and_body(&loaded, &headers, "<?php echo 'hello';");
         assert_eq!(matches.len(), 2);
     }
 

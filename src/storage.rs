@@ -37,14 +37,14 @@ impl DbWriter {
     pub fn new(db_path: &Path, run_id: i64) -> Result<Self> {
         let (result_tx, mut result_rx) = mpsc::unbounded_channel();
         let (shutdown_tx, mut shutdown_rx) = mpsc::unbounded_channel();
-        
+
         let db_path = db_path.to_path_buf();
-        
+
         tokio::spawn(async move {
             let mut batch: Vec<ProbeResult> = Vec::with_capacity(BATCH_SIZE);
             let mut pending_write: Option<tokio::task::JoinHandle<Result<()>>> = None;
             let mut last_error: Option<String> = None;
-            
+
             loop {
                 tokio::select! {
                     Some(result) = result_rx.recv() => {
@@ -52,7 +52,7 @@ impl DbWriter {
                         if batch.len() >= BATCH_SIZE {
                             let batch_to_write = std::mem::take(&mut batch);
                             batch = Vec::with_capacity(BATCH_SIZE);
-                            
+
                             if let Some(handle) = pending_write.take() {
                                 match handle.await {
                                     Ok(Ok(())) => {}
@@ -64,7 +64,7 @@ impl DbWriter {
                                     }
                                 }
                             }
-                            
+
                             let db_path_clone = db_path.clone();
                             let run_id_clone = run_id;
                             pending_write = Some(tokio::task::spawn_blocking(move || {
@@ -109,23 +109,23 @@ impl DbWriter {
                     }
                 }
             }
-            
+
             if let Some(err) = last_error {
                 eprintln!("db writer error: {}", err);
             }
         });
-        
+
         Ok(Self {
             sender: result_tx,
             shutdown_tx: Some(shutdown_tx),
             run_id,
         })
     }
-    
+
     pub fn write(&self, result: ProbeResult) {
         let _ = self.sender.send(result);
     }
-    
+
     pub async fn shutdown(mut self) {
         if let Some(tx) = self.shutdown_tx.take() {
             let _ = tx.send(());
@@ -138,13 +138,13 @@ fn write_batch(db_path: &Path, run_id: i64, batch: Vec<ProbeResult>) -> Result<(
     if batch.is_empty() {
         return Ok(());
     }
-    
+
     let mut conn = Connection::open(db_path).context("failed to open db for batch write")?;
     conn.execute_batch(
         "PRAGMA journal_mode = WAL;
-         PRAGMA synchronous = NORMAL;"
+         PRAGMA synchronous = NORMAL;",
     )?;
-    
+
     let tx = conn.transaction()?;
     for result in &batch {
         let cookies_json = serde_json::to_string(&result.cookies)
@@ -301,14 +301,14 @@ impl Database {
             conn: Mutex::new(conn),
             writer: Mutex::new(None),
         })
-}
+    }
 
     #[allow(dead_code)]
     pub fn set_writer(&self, writer: Arc<DbWriter>) {
         let mut w = self.writer.lock().unwrap();
         *w = Some(writer);
     }
-    
+
     #[allow(dead_code)]
     pub fn get_writer(&self) -> Option<Arc<DbWriter>> {
         let w = self.writer.lock().unwrap();
@@ -420,7 +420,9 @@ impl Database {
     }
 
     fn lock(&self) -> Result<MutexGuard<'_, Connection>> {
-        self.conn.lock().map_err(|_| anyhow::anyhow!("db mutex poisoned"))
+        self.conn
+            .lock()
+            .map_err(|_| anyhow::anyhow!("db mutex poisoned"))
     }
 
     #[allow(dead_code)]
@@ -455,9 +457,8 @@ impl Database {
     #[allow(dead_code)]
     pub fn query_domains_with_tech(&self, tech_name: &str) -> Result<Vec<String>> {
         let conn = self.lock()?;
-        let mut stmt = conn.prepare(
-            "SELECT DISTINCT domain FROM technologies WHERE technology_name LIKE ?1",
-        )?;
+        let mut stmt =
+            conn.prepare("SELECT DISTINCT domain FROM technologies WHERE technology_name LIKE ?1")?;
         let domains = stmt.query_map([format!("%{}%", tech_name)], |row| row.get(0))?;
         Ok(domains.filter_map(|d| d.ok()).collect())
     }
@@ -497,7 +498,14 @@ impl Database {
             })
             .collect();
 
-        let border = format!("+{}+", col_widths.iter().map(|w| "-".repeat(*w + 2)).collect::<Vec<_>>().join("+"));
+        let border = format!(
+            "+{}+",
+            col_widths
+                .iter()
+                .map(|w| "-".repeat(*w + 2))
+                .collect::<Vec<_>>()
+                .join("+")
+        );
 
         let mut output = format!("\n-- Query: {}\n{}\n", sql, border);
 
@@ -542,7 +550,7 @@ mod tests {
             ct_logs: false,
             monitor: false,
             interval: 60,
-webhook: None,
+            webhook: None,
             cve_lookup: false,
             fast: false,
             aggressive: false,
@@ -614,9 +622,11 @@ webhook: None,
         db.finalize_analysis_run(run_id, 3).unwrap();
         let conn = db.lock().unwrap();
         let count: i64 = conn
-            .query_row("SELECT targets_processed FROM analysis_runs WHERE id = ?1", [run_id], |row| {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT targets_processed FROM analysis_runs WHERE id = ?1",
+                [run_id],
+                |row| row.get(0),
+            )
             .unwrap();
         assert_eq!(count, 3);
     }
@@ -636,13 +646,15 @@ webhook: None,
         let run_id = db.create_analysis_run(&meta).unwrap();
 
         let mut result = sample_result("tech.com");
-        result.technologies.push(crate::technology::TechnologyMatch {
-            name: "nginx".to_string(),
-            confidence: 80,
-            evidence: vec!["header:server~nginx".to_string()],
-            version: None,
-            is_dev_mode: false,
-        });
+        result
+            .technologies
+            .push(crate::technology::TechnologyMatch {
+                name: "nginx".to_string(),
+                confidence: 80,
+                evidence: vec!["header:server~nginx".to_string()],
+                version: None,
+                is_dev_mode: false,
+            });
 
         db.persist_results(run_id, &[result]).unwrap();
 
@@ -695,9 +707,11 @@ webhook: None,
         db.finalize_analysis_run(run_id, 0).unwrap();
         let conn = db.lock().unwrap();
         let count: i64 = conn
-            .query_row("SELECT targets_processed FROM analysis_runs WHERE id = ?1", [run_id], |row| {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT targets_processed FROM analysis_runs WHERE id = ?1",
+                [run_id],
+                |row| row.get(0),
+            )
             .unwrap();
         assert_eq!(count, 0);
     }
@@ -715,9 +729,12 @@ webhook: None,
             insecure: false,
         };
         let run_id = db.create_analysis_run(&meta).unwrap();
-        db.persist_results(run_id, &[sample_result("example.com")]).unwrap();
+        db.persist_results(run_id, &[sample_result("example.com")])
+            .unwrap();
 
-        let results = db.query("SELECT domain, alive FROM probes WHERE run_id = 1").unwrap();
+        let results = db
+            .query("SELECT domain, alive FROM probes WHERE run_id = 1")
+            .unwrap();
         assert!(!results.is_empty());
         assert_eq!(results[0], vec!["domain", "alive"]);
         assert!(results.len() >= 2);
@@ -738,13 +755,15 @@ webhook: None,
         let run_id = db.create_analysis_run(&meta).unwrap();
 
         let mut result = sample_result("nginx.example.com");
-        result.technologies.push(crate::technology::TechnologyMatch {
-            name: "nginx".to_string(),
-            confidence: 90,
-            evidence: vec![],
-            version: None,
-            is_dev_mode: false,
-        });
+        result
+            .technologies
+            .push(crate::technology::TechnologyMatch {
+                name: "nginx".to_string(),
+                confidence: 90,
+                evidence: vec![],
+                version: None,
+                is_dev_mode: false,
+            });
         db.persist_results(run_id, &[result]).unwrap();
 
         let domains = db.query_domains_with_tech("nginx").unwrap();
@@ -766,14 +785,16 @@ webhook: None,
         let run_id = db.create_analysis_run(&meta).unwrap();
 
         let mut result = sample_result("secure.example.com");
-        result.security_findings.push(crate::security::SecurityFinding {
-            id: "test-high".to_string(),
-            category: "test".to_string(),
-            severity: Severity::High,
-            title: "High Severity".to_string(),
-            explanation: "desc".to_string(),
-            evidence: "ev".to_string(),
-        });
+        result
+            .security_findings
+            .push(crate::security::SecurityFinding {
+                id: "test-high".to_string(),
+                category: "test".to_string(),
+                severity: Severity::High,
+                title: "High Severity".to_string(),
+                explanation: "desc".to_string(),
+                evidence: "ev".to_string(),
+            });
         db.persist_results(run_id, &[result]).unwrap();
 
         let domains = db.query_domains_with_findings("high").unwrap();

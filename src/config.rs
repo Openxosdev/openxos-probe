@@ -55,15 +55,26 @@ impl AppConfig {
             .clone()
             .or(from_file.input)
             .context("missing required input file: use --input or set input in config file")?;
-        let output = args.output.or(from_file.output).unwrap_or(OutputFormat::Terminal);
+        let output = args
+            .output
+            .or(from_file.output)
+            .unwrap_or(OutputFormat::Terminal);
         let output_file = args.output_file.clone().or(from_file.output_file);
         let db = args
             .db
             .clone()
             .or(from_file.db)
             .unwrap_or_else(|| PathBuf::from("openxos-probe.db"));
-        let concurrency = args.concurrency.or(from_file.concurrency).unwrap_or(50).max(1).min(500);
-        let timeout_secs = args.timeout_secs.or(from_file.timeout_secs).unwrap_or(10).max(1).min(300);
+        let concurrency = args
+            .concurrency
+            .or(from_file.concurrency)
+            .unwrap_or(50)
+            .clamp(1, 500);
+        let timeout_secs = args
+            .timeout_secs
+            .or(from_file.timeout_secs)
+            .unwrap_or(10)
+            .clamp(1, 300);
         let retries = args.retries.or(from_file.retries).unwrap_or(1);
         let user_agent = args
             .user_agent
@@ -79,7 +90,10 @@ impl AppConfig {
         };
         let ct_logs = args.ct_logs || from_file.ct_logs.unwrap_or(false);
         let monitor = args.monitor || from_file.monitor.unwrap_or(false);
-        let interval = Some(args.interval).or(from_file.interval).unwrap_or(60).max(1);
+        let interval = Some(args.interval)
+            .or(from_file.interval)
+            .unwrap_or(60)
+            .max(1);
         let webhook = args.webhook.clone().or(from_file.webhook);
         let cve_lookup = args.cve_lookup || from_file.cve_lookup.unwrap_or(false);
         let fast = args.fast || from_file.fast.unwrap_or(false);
@@ -189,7 +203,7 @@ cve_lookup = true
         assert!(cfg.fast.is_none());
     }
 
-#[test]
+    #[test]
     fn app_config_resolve_uses_args_input() {
         let args = super::Args {
             input: Some(std::path::PathBuf::from("targets.txt")),
@@ -212,9 +226,9 @@ cve_lookup = true
             aggressive: false,
         };
         let cfg = super::AppConfig::resolve(&args).unwrap();
-        assert_eq!(cfg.concurrency, 100);  // Args take precedence
-        assert_eq!(cfg.timeout_secs, 8);    // Args take precedence
-        assert_eq!(cfg.retries, 2);       // Args take precedence
+        assert_eq!(cfg.concurrency, 100); // Args take precedence
+        assert_eq!(cfg.timeout_secs, 8); // Args take precedence
+        assert_eq!(cfg.retries, 2); // Args take precedence
         assert_eq!(cfg.output, super::OutputFormat::Json);
         assert_eq!(cfg.user_agent, "CustomUA");
     }
@@ -244,7 +258,10 @@ cve_lookup = true
         let cfg = super::AppConfig::resolve(&args).unwrap();
         assert_eq!(cfg.concurrency, 500);
 
-        let args2 = super::Args { concurrency: Some(0), ..args.clone() };
+        let args2 = super::Args {
+            concurrency: Some(0),
+            ..args.clone()
+        };
         let cfg2 = super::AppConfig::resolve(&args2).unwrap();
         assert_eq!(cfg2.concurrency, 1);
     }
@@ -274,7 +291,10 @@ cve_lookup = true
         let cfg = super::AppConfig::resolve(&args).unwrap();
         assert_eq!(cfg.timeout_secs, 300);
 
-        let args2 = super::Args { timeout_secs: Some(0), ..args.clone() };
+        let args2 = super::Args {
+            timeout_secs: Some(0),
+            ..args.clone()
+        };
         let cfg2 = super::AppConfig::resolve(&args2).unwrap();
         assert_eq!(cfg2.timeout_secs, 1);
     }

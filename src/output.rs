@@ -9,7 +9,11 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 
-pub fn write_output(format: OutputFormat, path: Option<PathBuf>, results: &[ProbeResult]) -> Result<()> {
+pub fn write_output(
+    format: OutputFormat,
+    path: Option<PathBuf>,
+    results: &[ProbeResult],
+) -> Result<()> {
     match format {
         OutputFormat::Terminal => print_terminal(results),
         OutputFormat::Json => write_json(path, results)?,
@@ -21,7 +25,11 @@ pub fn write_output(format: OutputFormat, path: Option<PathBuf>, results: &[Prob
 fn print_terminal(results: &[ProbeResult]) {
     println!("\n=== Openxos Probe Results ===");
     for result in results {
-        let status = if result.alive { "ALIVE".green() } else { "DEAD".red() };
+        let status = if result.alive {
+            "ALIVE".green()
+        } else {
+            "DEAD".red()
+        };
         let technologies = if result.technologies.is_empty() {
             "-".to_string()
         } else {
@@ -54,7 +62,10 @@ fn print_terminal(results: &[ProbeResult]) {
             String::new()
         };
         let takeover_display = if let Some(t) = &result.takeover {
-            format!(" [TAKEOVER:{}]", t.service).red().bold().to_string()
+            format!(" [TAKEOVER:{}]", t.service)
+                .red()
+                .bold()
+                .to_string()
         } else {
             String::new()
         };
@@ -176,7 +187,8 @@ impl CsvRow {
                 Severity::Low => findings_low += 1,
             }
         }
-        let technologies = serde_json::to_string(&result.technologies).unwrap_or_else(|_| "[]".into());
+        let technologies =
+            serde_json::to_string(&result.technologies).unwrap_or_else(|_| "[]".into());
         let security_findings =
             serde_json::to_string(&result.security_findings).unwrap_or_else(|_| "[]".into());
         let waf_name = result.waf.as_ref().and_then(|w| w.name.clone());
@@ -260,7 +272,11 @@ impl Summary {
 fn actionable_domains(results: &[ProbeResult], severity: Severity) -> Vec<String> {
     let mut domains = Vec::new();
     for result in results {
-        if result.security_findings.iter().any(|f| f.severity == severity) {
+        if result
+            .security_findings
+            .iter()
+            .any(|f| f.severity == severity)
+        {
             domains.push(result.domain.clone());
         }
     }
@@ -346,14 +362,16 @@ mod tests {
 
     fn result_with_finding(domain: &str, severity: Severity) -> crate::probe::ProbeResult {
         let mut result = sample_alive_result(domain);
-        result.security_findings.push(crate::security::SecurityFinding {
-            id: "test-finding".to_string(),
-            category: "security_headers".to_string(),
-            severity,
-            title: "Test finding".to_string(),
-            explanation: "Test explanation".to_string(),
-            evidence: "test".to_string(),
-        });
+        result
+            .security_findings
+            .push(crate::security::SecurityFinding {
+                id: "test-finding".to_string(),
+                category: "security_headers".to_string(),
+                severity,
+                title: "Test finding".to_string(),
+                explanation: "Test explanation".to_string(),
+                evidence: "test".to_string(),
+            });
         result
     }
 

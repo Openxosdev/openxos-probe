@@ -1,5 +1,5 @@
-use serde::Serialize;
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CertificateInfo {
@@ -27,9 +27,14 @@ pub struct TlsInfo {
 }
 
 impl TlsInfo {
+    #[allow(dead_code)]
     pub fn is_weak_cipher(cipher: &str) -> bool {
-        let weak_patterns = ["DES", "3DES", "RC4", "MD5", "SHA1", "EXPORT", "NULL", "ANON"];
-        weak_patterns.iter().any(|w| cipher.to_uppercase().contains(w))
+        let weak_patterns = [
+            "DES", "3DES", "RC4", "MD5", "SHA1", "EXPORT", "NULL", "ANON",
+        ];
+        weak_patterns
+            .iter()
+            .any(|w| cipher.to_uppercase().contains(w))
     }
 }
 
@@ -37,7 +42,7 @@ fn calculate_days(valid_to: &str) -> i64 {
     if let Ok(dt) = DateTime::parse_from_rfc3339(valid_to) {
         return (dt.with_timezone(&Utc) - Utc::now()).num_days();
     }
-    
+
     let date_str = valid_to.split('T').next().unwrap_or(valid_to);
     chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
         .ok()

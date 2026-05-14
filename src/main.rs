@@ -23,8 +23,7 @@ async fn run_single_scan(
     domains: Vec<String>,
     probe_config: ProbeConfig,
 ) -> Result<Vec<probe::ProbeResult>> {
-    probe::probe_domains(domains, probe_config, |_done, _result| {})
-        .await
+    probe::probe_domains(domains, probe_config, |_done, _result| {}).await
 }
 
 #[tokio::main]
@@ -64,35 +63,47 @@ async fn run_monitoring_mode(config: &AppConfig) -> Result<()> {
         let run_meta = storage::RunMetadata::from_config(domains.len(), config);
         let run_id = db.create_analysis_run(&run_meta)?;
 
-        println!("{}", format!("[{}] Scan started...", chrono::Local::now().format("%Y-%m-%d %H:%M:%S")).yellow());
-        
+        println!(
+            "{}",
+            format!(
+                "[{}] Scan started...",
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+            )
+            .yellow()
+        );
+
         let results = run_single_scan(domains.clone(), probe_config.clone()).await?;
-        
+
         db.persist_results(run_id, &results)?;
         db.finalize_analysis_run(run_id, results.len() as i64)?;
         output::write_output(config.output.clone(), config.output_file.clone(), &results)?;
 
         let elapsed = scan_start.elapsed().as_secs_f64();
         let alive_count = results.iter().filter(|r| r.alive).count();
-        let findings_high = results.iter().flat_map(|r| &r.security_findings)
-            .filter(|f| f.severity == security::Severity::High).count();
+        let findings_high = results
+            .iter()
+            .flat_map(|r| &r.security_findings)
+            .filter(|f| f.severity == security::Severity::High)
+            .count();
 
-        println!("{}", format!(
-            "[{}] Scan complete in {:.1}s | Alive: {} | High findings: {}",
-            chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-            elapsed,
-            alive_count,
-            findings_high
-        ).green());
+        println!(
+            "{}",
+            format!(
+                "[{}] Scan complete in {:.1}s | Alive: {} | High findings: {}",
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                elapsed,
+                alive_count,
+                findings_high
+            )
+            .green()
+        );
 
         if let Some(webhook_url) = &config.webhook {
             let summary = Summary::from_results(&results);
-            if let Err(e) = output::send_webhook_notification(
-                webhook_url,
-                &summary,
-                domains.len(),
-                elapsed,
-            ).await {
+            if let Err(e) =
+                output::send_webhook_notification(webhook_url, &summary, domains.len(), elapsed)
+                    .await
+            {
                 eprintln!("{} Webhook failed: {}", "Error:".red(), e);
             } else {
                 println!("{} Webhook notification sent", ">>".cyan());
@@ -111,12 +122,30 @@ async fn run_single_scan_mode(config: &AppConfig) -> Result<()> {
     println!("{}", "Input Statistics:".cyan().bold());
     println!("  # total lines     : {}", parse_result.stats.total_lines);
     println!("  # skipped empty   : {}", parse_result.stats.skipped_empty);
-    println!("  # skipped comments : {}", parse_result.stats.skipped_comments);
-    println!("  # skipped invalid  : {}", parse_result.stats.skipped_invalid);
-    println!("  # skipped sinkhole: {}", parse_result.stats.skipped_sinkhole);
-    println!("  # skipped reserved: {}", parse_result.stats.skipped_reserved);
-    println!("  # skipped dupe    : {}", parse_result.stats.skipped_duplicates);
-    println!("  # valid domains   : {}", parse_result.stats.valid_domains.to_string().green());
+    println!(
+        "  # skipped comments : {}",
+        parse_result.stats.skipped_comments
+    );
+    println!(
+        "  # skipped invalid  : {}",
+        parse_result.stats.skipped_invalid
+    );
+    println!(
+        "  # skipped sinkhole: {}",
+        parse_result.stats.skipped_sinkhole
+    );
+    println!(
+        "  # skipped reserved: {}",
+        parse_result.stats.skipped_reserved
+    );
+    println!(
+        "  # skipped dupe    : {}",
+        parse_result.stats.skipped_duplicates
+    );
+    println!(
+        "  # valid domains   : {}",
+        parse_result.stats.valid_domains.to_string().green()
+    );
     println!();
 
     if domains.is_empty() {
@@ -129,7 +158,11 @@ async fn run_single_scan_mode(config: &AppConfig) -> Result<()> {
     let db = storage::Database::new(&config.db)?;
     let run_id = db.create_analysis_run(&run_meta)?;
 
-    println!("{} {}", ">>".cyan().bold(), format!("Probing {} targets...", total).yellow());
+    println!(
+        "{} {}",
+        ">>".cyan().bold(),
+        format!("Probing {} targets...", total).yellow()
+    );
     println!();
 
     let mp = MultiProgress::new();
@@ -206,7 +239,10 @@ async fn run_single_scan_mode(config: &AppConfig) -> Result<()> {
     println!("  # scanned    : {}", total);
     println!("  # alive      : {}", alive_count.to_string().green());
     println!("  # dead       : {}", total - alive_count);
-    println!("  # findings   : high={}, medium={}, low={}", findings_high, findings_medium, findings_low);
+    println!(
+        "  # findings   : high={}, medium={}, low={}",
+        findings_high, findings_medium, findings_low
+    );
     println!("  # time       : {:.2}s", elapsed);
     println!();
 
@@ -218,7 +254,11 @@ async fn run_single_scan_mode(config: &AppConfig) -> Result<()> {
                 .iter()
                 .any(|f| f.severity == security::Severity::High);
             if has_high {
-                println!("  - {} ({} findings)", result.domain, result.security_findings.len());
+                println!(
+                    "  - {} ({} findings)",
+                    result.domain,
+                    result.security_findings.len()
+                );
             }
         }
         println!();
@@ -230,12 +270,9 @@ async fn run_single_scan_mode(config: &AppConfig) -> Result<()> {
 
     if let Some(webhook_url) = &config.webhook {
         let summary = Summary::from_results(&results);
-        if let Err(e) = output::send_webhook_notification(
-            webhook_url,
-            &summary,
-            total,
-            elapsed,
-        ).await {
+        if let Err(e) =
+            output::send_webhook_notification(webhook_url, &summary, total, elapsed).await
+        {
             eprintln!("{} Webhook failed: {}", "Error:".red(), e);
         } else {
             println!("{} Webhook notification sent", ">>".cyan());
