@@ -3,9 +3,9 @@
 **HTTP reconnaissance & security analysis tool for bug bounty hunters**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.70+-orange?style=flat-square)](https://rustlang.org)
+[![Rust](https://img.shields.io/badge/rust-1.80+-orange?style=flat-square)](https://rustlang.org)
 [![Tests](https://img.shields.io/badge/tests-144-blue?style=flat-square)](https://github.com/Openxosdev/openxos-probe)
-[![Build](https://img.shields.io/github/actions/workflow/status/Openxosdev/openxos-probe/ci.yml?style=flat-square)](https://github.com/Openxosdev/openxos-probe/actions)
+[![Build](https://img.shields.io/github/actions/workflow/status/Openxosdev/openxos-probe/tests.yml?style=flat-square)](https://github.com/Openxosdev/openxos-probe/actions)
 
 ---
 
