@@ -84,18 +84,6 @@ cargo build --release
 ./target/release/openxos-probe --version
 ```
 
-### Pre-built Binaries
-
-Download from [Releases](https://github.com/Openxosdev/openxos-probe/releases)
-
-| Platform | Download |
-|----------|----------|
-| Linux x86_64 | `openxos-probe-linux-amd64` |
-| Windows | `openxos-probe.exe` |
-| macOS | `openxos-probe-macos` |
-
----
-
 ## Quick Start
 
 ```bash
