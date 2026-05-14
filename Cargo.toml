@@ -1,0 +1,57 @@
+[package]
+name = "openxos-probe"
+version = "0.1.0"
+edition = "2021"
+description = "HTTP service analysis and technology fingerprinting tool for bug bounty hunters"
+license = "MIT"
+authors = ["Openxos <github.com/Openxosdev>"]
+repository = "https://github.com/Openxosdev/openxos-probe"
+homepage = "https://github.com/Openxosdev/openxos-probe"
+documentation = "https://github.com/Openxosdev/openxos-probe#readme"
+keywords = ["security", "bug-bounty", "reconnaissance", "http", "fingerprinting"]
+categories = ["command-line-utilities", "network-programming"]
+rust-version = "1.70"
+
+[[bin]]
+name = "openxos-probe"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+colored = "2"
+csv = "1"
+futures = "0.3"
+indicatif = "0.17"
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+toml = "0.8"
+url = "2"
+tempfile = "3"
+dashmap = "5"
+aho-corasick = "1"
+x509-parser = "0.14"
+tokio-rustls = "0.24"
+rustls = "0.21"
+webpki-roots = "0.25"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+split-debuginfo = "packed"
+
+[target.aarch64-unknown-linux-gnu]
+rustflags = ["-C", "target-cpu=generic"]
+
+[target.i686-unknown-linux-gnu]
+rustflags = ["-C", "target-cpu=generic"]

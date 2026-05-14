@@ -1,0 +1,66 @@
+# openxos-probe Configuration
+# https://github.com/Openxosdev/openxos-probe
+
+# =============================================================================
+# Input/Output Settings
+# =============================================================================
+
+# Input subdomain file (required)
+input = "subdomains.txt"
+
+# Output format: terminal | json | csv
+output = "json"
+
+# Output file path (optional, outputs to stdout if not specified)
+output_file = "artifacts/results.json"
+
+# SQLite database path for persistence
+db = "artifacts/openxos-probe.db"
+
+# =============================================================================
+# Performance Settings
+# =============================================================================
+
+# Maximum concurrent connections (default: 50)
+concurrency = 50
+
+# Request timeout in seconds (default: 10)
+timeout_secs = 10
+
+# Number of retry attempts on failure (default: 1)
+retries = 1
+
+# =============================================================================
+# HTTP Client Settings
+# =============================================================================
+
+# Custom User-Agent string
+user_agent = "openxos-probe/0.1"
+
+# Allow invalid/self-signed TLS certificates (default: false)
+insecure = false
+
+# =============================================================================
+# Scan Modes
+# =============================================================================
+
+# Fast mode: Skip slow checks (WebSocket, GraphQL, SSRF, CVE lookup)
+# Useful for quick reconnaissance (default: false)
+fast = false
+
+# Aggressive mode: Enable HTTP method testing, rate limit probing
+# May trigger rate limits on sensitive targets (default: false)
+aggressive = false
+
+# =============================================================================
+# Notes
+# =============================================================================
+# Configuration precedence (highest to lowest):
+#   1. CLI arguments
+#   2. Config file values
+#   3. Built-in defaults
+#
+# Command-line examples:
+#   openxos-probe --input subdomains.txt --output json
+#   openxos-probe --input subdomains.txt --concurrency 100 --timeout-secs 8
+#   openxos-probe --config custom.toml --insecure

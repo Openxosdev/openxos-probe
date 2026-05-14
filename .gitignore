@@ -1,0 +1,32 @@
+# Build output
+target/
+debug/
+release/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+rustfmt.toml
+
+# Rust
+Cargo.lock
+rust-toolchain.toml
+
+# Output files
+*.db
+*.json
+output/
+results/
+*.log
+
+# Temp files
+*.tmp
+test.txt
+test_output.*
+
+# OS
+.DS_Store
+Thumbs.db

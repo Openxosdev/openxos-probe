@@ -1,0 +1,8 @@
+# Rustfmt configuration
+# https://doc.rust-lang.org/rustfmt/index.html
+
+# Use 4 spaces for indentation
+tab_spaces = 4
+
+# Max line length
+max_width = 100
