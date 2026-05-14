@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.2] - 2026-05-14 — Crimson Probe
+
+### Added
+- `--version` flag with code name ("Crimson Probe")
+- `--query` flag for custom SQL queries against database
+- `--query-tech` flag to find domains by detected technology
+- `--query-findings` flag to find domains by security finding severity
+- Error details for dead hosts now shown in progress status line
+- Signatures auto-discovered from cwd, exe dir, or OPENXOS_SIGNATURES env var
+
+### Fixed
+- `--version` flag not recognized
+- Dead hosts showing no error reason (timeout/DNS/refused now displayed)
+- Technology signatures warning UX improved
+
 ## [0.1.0] - 2026-05-10
 
 ### Added

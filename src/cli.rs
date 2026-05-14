@@ -5,6 +5,8 @@ use std::path::PathBuf;
 #[derive(Parser, Debug, Clone)]
 #[command(
     name = "openxos-probe",
+    version = "0.1.2",
+    long_version = "0.1.2 — Crimson Probe",
     about = "HTTP service analysis and technology fingerprinting for bug bounty hunters",
     long_about = "Transforms raw subdomain lists into actionable target intelligence through HTTP probing, technology fingerprinting, and security analysis.
 
@@ -125,6 +127,26 @@ pub struct Args {
         help = "Aggressive mode - enable HTTP method enumeration and other intrusive checks"
     )]
     pub aggressive: bool,
+
+    #[arg(
+        long,
+        value_name = "SQL",
+        help = "Execute custom SQL query against the database"
+    )]
+    pub query: Option<String>,
+
+    #[arg(
+        long,
+        value_name = "TECH",
+        help = "Query domains by detected technology"
+    )]
+    pub query_tech: Option<String>,
+
+    #[arg(
+        long,
+        help = "Query domains by security findings (high, medium, low)"
+    )]
+    pub query_findings: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum, Deserialize, PartialEq)]

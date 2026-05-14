@@ -224,6 +224,9 @@ cve_lookup = true
             cve_lookup: false,
             fast: false,
             aggressive: false,
+            query: None,
+            query_tech: None,
+            query_findings: None,
         };
         let cfg = super::AppConfig::resolve(&args).unwrap();
         assert_eq!(cfg.concurrency, 100); // Args take precedence
@@ -254,6 +257,9 @@ cve_lookup = true
             cve_lookup: false,
             fast: false,
             aggressive: false,
+            query: None,
+            query_tech: None,
+            query_findings: None,
         };
         let cfg = super::AppConfig::resolve(&args).unwrap();
         assert_eq!(cfg.concurrency, 500);
@@ -287,6 +293,9 @@ cve_lookup = true
             cve_lookup: false,
             fast: false,
             aggressive: false,
+            query: None,
+            query_tech: None,
+            query_findings: None,
         };
         let cfg = super::AppConfig::resolve(&args).unwrap();
         assert_eq!(cfg.timeout_secs, 300);
@@ -320,6 +329,9 @@ cve_lookup = true
             cve_lookup: false,
             fast: false,
             aggressive: false,
+            query: None,
+            query_tech: None,
+            query_findings: None,
         };
         let cfg = super::AppConfig::resolve(&args).unwrap();
         assert!(cfg.insecure);
@@ -354,6 +366,9 @@ cve_lookup = true
             cve_lookup: false,
             fast: false,
             aggressive: false,
+            query: None,
+            query_tech: None,
+            query_findings: None,
         };
         let err = super::AppConfig::resolve(&args).unwrap_err();
         assert!(err.to_string().contains("input"));

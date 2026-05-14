@@ -1,6 +1,6 @@
 [package]
 name = "openxos-probe"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "HTTP service analysis and technology fingerprinting tool for bug bounty hunters"
 license = "MIT"

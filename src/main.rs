@@ -29,6 +29,11 @@ async fn run_single_scan(
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+
+    if args.query.is_some() || args.query_tech.is_some() || args.query_findings.is_some() {
+        return run_query_mode(&args);
+    }
+
     let config = AppConfig::resolve(&args)?;
 
     print_banner();
@@ -202,13 +207,20 @@ async fn run_single_scan_mode(config: &AppConfig) -> Result<()> {
             String::new()
         };
 
+        let error_tag = if let Some(ref err) = result.error {
+            format!("[err: {}]", err).red().to_string()
+        } else {
+            String::new()
+        };
+
         pb.set_message(format!(
-            "{} {} {} {} {}",
+            "{} {} {} {} {} {}",
             result.domain,
             status,
             format!("[{} tech]", tech_count),
             finding_tag,
-            waf_tag
+            waf_tag,
+            error_tag
         ));
         pb.inc(1);
     })
@@ -282,6 +294,30 @@ async fn run_single_scan_mode(config: &AppConfig) -> Result<()> {
     Ok(())
 }
 
+fn run_query_mode(args: &Args) -> Result<()> {
+    let db_path = args.db.clone().unwrap_or_else(|| std::path::PathBuf::from("openxos-probe.db"));
+    let db = storage::Database::new(&db_path)?;
+
+    if let Some(sql) = &args.query {
+        let results = db.query(sql)?;
+        for row in &results {
+            println!("{}", row.join(" | "));
+        }
+    } else if let Some(tech) = &args.query_tech {
+        let domains = db.query_domains_with_tech(tech)?;
+        for domain in domains {
+            println!("{}", domain);
+        }
+    } else if let Some(severity) = &args.query_findings {
+        let domains = db.query_domains_with_findings(severity)?;
+        for domain in domains {
+            println!("{}", domain);
+        }
+    }
+
+    Ok(())
+}
+
 fn print_banner() {
     println!(
         "{}",
@@ -300,6 +336,6 @@ fn print_banner() {
     );
     println!(
         "  {} — HTTP probing & technology fingerprinting\n",
-        "openxos-probe v0.1.0".bold()
+        format!("openxos-probe v{}", env!("CARGO_PKG_VERSION")).bold()
     );
 }

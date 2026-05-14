@@ -163,11 +163,38 @@ pub struct ProbeConfig {
     pub aggressive: bool,
 }
 
+fn load_signatures_with_fallback() -> Result<LoadedSignatures> {
+    let mut search_paths = vec![std::path::PathBuf::from("signatures")];
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            search_paths.push(parent.join("signatures"));
+        }
+    }
+
+    if let Ok(var) = std::env::var("OPENXOS_SIGNATURES") {
+        search_paths.push(std::path::PathBuf::from(var));
+    }
+
+    for path in search_paths {
+        if path.exists() {
+            match LoadedSignatures::load_from_dir(&path) {
+                Ok(sigs) if !sigs.signatures.is_empty() => return Ok(sigs),
+                _ => continue,
+            }
+        }
+    }
+
+    Ok(LoadedSignatures::from_signatures(vec![])?)
+}
+
 impl ProbeConfig {
     pub fn from_config(config: &AppConfig) -> Result<Self> {
-        let signatures = LoadedSignatures::load_from_dir(&std::path::PathBuf::from("signatures"))?;
+        let signatures = load_signatures_with_fallback()?;
         if signatures.signatures.is_empty() {
-            eprintln!("Warning: No technology signatures loaded. Check 'signatures/' directory.");
+            eprintln!("Warning: No technology signatures loaded.");
+            eprintln!("  Create a 'signatures/' directory with .json files,");
+            eprintln!("  or set OPENXOS_SIGNATURES env var to the signatures directory.");
         }
         Ok(Self {
             concurrency: config.concurrency.clamp(1, 500),
@@ -232,7 +259,6 @@ pub async fn check_takeover(domain: &str, status: u16, body: &str) -> Option<Tak
             });
         }
     }
-
     None
 }
 
@@ -333,9 +359,9 @@ async fn probe_protocol(
     domain: &str,
     scheme: &str,
     config: &ProbeConfig,
-) -> Option<ProtocolResult> {
+) -> (Option<ProtocolResult>, Option<String>) {
     let target = format!("{scheme}://{domain}");
-    let mut _last_error = None;
+    let mut last_error: Option<String> = None;
 
     for attempt in 0..config.retries {
         let request_started = Instant::now();
@@ -375,11 +401,11 @@ async fn probe_protocol(
                 let body = match resp.text().await {
                     Ok(text) => text,
                     Err(e) => {
-                        _last_error = Some(format!("failed to read body: {}", e));
+                        last_error = Some(format!("failed to read body: {}", e));
                         if attempt < config.retries - 1 {
                             continue;
                         }
-                        return None;
+                        return (None, last_error);
                     }
                 };
                 let body_time_ms = body_started.elapsed().as_millis();
@@ -520,7 +546,7 @@ async fn probe_protocol(
                     crate::security::analyze_cache_headers(&final_url, &headers);
                 security_findings.extend(cache_findings);
 
-                return Some(ProtocolResult {
+                return (Some(ProtocolResult {
                     url: final_url,
                     status_code,
                     response_time_ms,
@@ -548,17 +574,17 @@ async fn probe_protocol(
                     takeover,
                     content_type_mismatch,
                     timing,
-                });
+                }), None);
             }
             Err(err) => {
-                _last_error = Some(err.to_string());
+                last_error = Some(err.to_string());
                 if attempt < config.retries - 1 {
                     continue;
                 }
             }
         }
     }
-    None
+    (None, last_error)
 }
 
 async fn probe_domain(client: &reqwest::Client, domain: &str, config: &ProbeConfig) -> ProbeResult {
@@ -570,7 +596,7 @@ async fn probe_domain(client: &reqwest::Client, domain: &str, config: &ProbeConf
         None
     };
 
-    let (http_result, https_result) = tokio::join!(
+    let ((http_result, http_err), (https_result, https_err)) = tokio::join!(
         probe_protocol(client, domain, "http", config),
         probe_protocol(client, domain, "https", config)
     );
@@ -639,7 +665,8 @@ async fn probe_domain(client: &reqwest::Client, domain: &str, config: &ProbeConf
         );
     }
 
-    map_probe_failure(domain, None)
+    let error_msg = http_err.or(https_err);
+    map_probe_failure(domain, error_msg)
 }
 
 #[allow(dead_code, clippy::too_many_arguments)]
