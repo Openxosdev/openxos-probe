@@ -295,7 +295,10 @@ async fn run_single_scan_mode(config: &AppConfig) -> Result<()> {
 }
 
 fn run_query_mode(args: &Args) -> Result<()> {
-    let db_path = args.db.clone().unwrap_or_else(|| std::path::PathBuf::from("openxos-probe.db"));
+    let db_path = args
+        .db
+        .clone()
+        .unwrap_or_else(|| std::path::PathBuf::from("openxos-probe.db"));
     let db = storage::Database::new(&db_path)?;
 
     if let Some(sql) = &args.query {

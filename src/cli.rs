@@ -142,10 +142,7 @@ pub struct Args {
     )]
     pub query_tech: Option<String>,
 
-    #[arg(
-        long,
-        help = "Query domains by security findings (high, medium, low)"
-    )]
+    #[arg(long, help = "Query domains by security findings (high, medium, low)")]
     pub query_findings: Option<String>,
 }
 
